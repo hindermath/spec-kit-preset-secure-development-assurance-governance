@@ -373,11 +373,13 @@ function Test-SDATestSnapshot {
         Assert-SDATest ($record.sha256 -ceq $expectedHash) 'Snapshot does not contain the actual SHA-256 value.'
     }
 
-    $mutablePath = Join-Path $snapshotRoot '.hidden'
+    # Windows verweigert WriteAllText beim Überschreiben versteckter Dateien; deren Aufzählung bleibt separat geprüft.
+    # Windows denies WriteAllText when overwriting hidden files; hidden-file enumeration stays separately tested.
+    $mutablePath = Join-Path $snapshotRoot 'a.txt'
     $normalizedHash = Get-SDATestHash $mutablePath
     Write-SDATestText $mutablePath "original`n" -Bom -CrLf
     Assert-SDATest ($normalizedHash -ceq (Get-SDATestHash $mutablePath)) 'Semantic hash no longer normalizes BOM/CRLF.'
-    Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Raw snapshot missed a hidden-file BOM/CRLF change.'
+    Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Raw snapshot missed a BOM/CRLF change.'
     Write-SDATestText $mutablePath "changed`n"
     Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Snapshot missed changed content.'
     Write-SDATestText $mutablePath "original`n"
@@ -389,9 +391,9 @@ function Test-SDATestSnapshot {
     Remove-Item -LiteralPath $mutablePath -Force
     Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Snapshot missed a deleted file.'
     Write-SDATestText $mutablePath "original`n"
-    Rename-Item -LiteralPath $mutablePath -NewName '.renamed' -Force
+    Rename-Item -LiteralPath $mutablePath -NewName 'renamed.txt' -Force
     Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Snapshot missed a renamed file.'
-    Rename-Item -LiteralPath (Join-Path $snapshotRoot '.renamed') -NewName '.hidden' -Force
+    Rename-Item -LiteralPath (Join-Path $snapshotRoot 'renamed.txt') -NewName 'a.txt' -Force
     Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Restored files did not restore the snapshot.'
     Assert-SDATest ((Get-SDATestSnapshot $snapshotRoot -Files @()) -ceq '[]') 'Empty snapshot is not deterministic.'
     'PASS: deterministic raw-byte snapshots, hidden files and mutation detection'
