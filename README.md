@@ -749,12 +749,21 @@ Beim normalisierten Bash-Hash werden ausserdem die von Windows-`jq.exe`
 erneut erzeugten CR-Zeichen entfernt, nachdem alle fachlichen Zeilenenden
 bereits nach LF normalisiert wurden. Der rohe Read-only-Snapshot bleibt
 davon getrennt und erkennt weiterhin jede Byte-Aenderung.
+Alle Bash-JSON-Abfragen verwenden `--binary`, wenn jq diese Option kennt.
+Aelteres POSIX-jq bleibt mit nachgewiesener LF-Ausgabe kompatibel. Eine alte
+native Variante mit CRLF-Ausgabe und ohne Binary-Unterstuetzung blockiert
+mit klarer Werkzeugdiagnose, statt Evidence falsch zu bewerten.
 
 *Version 0.1.1 fixes generated command paths and deterministic read-only
 snapshots without changing the evidence schema or semantic normalization.
 The normalized Bash hash also removes CR bytes reintroduced by native Windows
 jq after line normalization. Raw read-only snapshots still detect every byte
 change. It is a field-test candidate, not a claim of project acceptance.*
+
+*Every Bash JSON query uses binary output when supported. Older POSIX jq
+remains compatible after an LF-output probe. A legacy native jq that changes
+line endings without binary support fails with an explicit tool diagnostic,
+never a fabricated evidence result.*
 
 Vor Lieferung beide Regressionen ausführen:
 

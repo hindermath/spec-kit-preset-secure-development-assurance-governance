@@ -296,8 +296,10 @@ function Invoke-SDATestProcess {
     $info.RedirectStandardError = $true
     foreach ($argument in $Arguments) { $null = $info.ArgumentList.Add($argument) }
     $process = [Diagnostics.Process]::Start($info)
-    $stdout = $process.StandardOutput.ReadToEnd().Trim()
-    $stderr = $process.StandardError.ReadToEnd().Trim()
+    # Nur Konsolen-CRLF wird vereinheitlicht; keine globale CR-Entfernung oder Änderung roher Evidence-Bytes.
+    # Normalize console CRLF only; do not globally strip CR or change raw evidence bytes.
+    $stdout = $process.StandardOutput.ReadToEnd().Replace("`r`n", "`n").Trim()
+    $stderr = $process.StandardError.ReadToEnd().Replace("`r`n", "`n").Trim()
     $process.WaitForExit()
     return [pscustomobject]@{ ExitCode = $process.ExitCode; StdOut = $stdout; StdErr = $stderr }
 }
@@ -437,6 +439,70 @@ function Test-SDAGateReviews {
     'PASS: four mixed-mode gate reviews, four missing-runbook blockers and unchanged human decisions'
 }
 
+function Test-SDAJqOutputMode {
+    param([Parameter(Mandatory)][string]$ExpectedStatus)
+
+    $shimRoot = Join-Path $temporaryRoot 'jq-output-mode'
+    # Der Adapter simuliert nur jq-Fähigkeiten; echte JSON-Abfragen bleiben beim installierten jq.
+    # The adapter simulates jq capabilities only; real JSON queries still use the installed jq.
+    $shimContent = @'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$SDA_JQ_TEST_MODE" == binary ]]; then
+  [[ "${1:-}" == --binary ]] || { printf 'Missing --binary argument\n' >&2; exit 97; }
+  shift
+  if [[ "$SDA_JQ_TEST_REAL_BINARY" == 1 ]]; then
+    exec "$SDA_JQ_TEST_REAL" --binary "$@"
+  fi
+  exec "$SDA_JQ_TEST_REAL" "$@"
+fi
+[[ "${1:-}" != --binary ]] || exit 2
+case "$SDA_JQ_TEST_MODE" in
+  legacy-lf) printf 'a\nb\n' ;;
+  legacy-crlf) printf 'a\r\nb\r\n' ;;
+  legacy-error) printf 'a\nb\n'; printf 'Simulated jq diagnostic\n' >&2 ;;
+esac
+'@
+    Write-SDATestText (Join-Path $shimRoot 'jq') ($shimContent.Replace("`r`n", "`n"))
+    $launch = @'
+set -euo pipefail
+shim_root=$1
+validator=$2
+real_jq=$3
+if command -v cygpath >/dev/null 2>&1; then
+  shim_root=$(cygpath -u "$shim_root")
+  validator=$(cygpath -u "$validator")
+  real_jq=$(cygpath -u "$real_jq")
+fi
+chmod +x "$shim_root/jq"
+export SDA_JQ_TEST_MODE="$4" SDA_JQ_TEST_REAL="$real_jq" SDA_JQ_TEST_REAL_BINARY=0
+if "$real_jq" --binary -n null >/dev/null 2>&1; then export SDA_JQ_TEST_REAL_BINARY=1; fi
+export PATH="$shim_root:$PATH"
+exec "$BASH" "$validator" status "$5"
+'@
+    $launch = $launch.Replace("`r`n", "`n")
+    $jqPath = (Get-Command jq -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+    $before = Get-SDATestSnapshot $temporaryRoot
+    foreach ($mode in @('binary', 'legacy-lf', 'legacy-crlf', 'legacy-error')) {
+        $context = if ($mode -eq 'binary') { $contextRelative } else { 'missing-context' }
+        $result = Invoke-SDATestProcess bash @('-c', $launch, 'sda-jq-mode', $shimRoot, $bashValidator, $jqPath, $mode, $context)
+        if ($mode -eq 'binary') {
+            Assert-SDATest ($result.ExitCode -eq 0) "Binary jq routing failed (exit=$($result.ExitCode)): $($result.StdErr)"
+            Assert-SDATest ($result.StdOut -ceq $ExpectedStatus) 'Binary jq routing changed the status result.'
+        } else {
+            $cause = switch ($mode) {
+                'legacy-lf' { 'Evidence-Verzeichnis fehlt' }
+                'legacy-crlf' { 'requires --binary support' }
+                'legacy-error' { 'jq output probe failed' }
+            }
+            Assert-SDATest ($result.ExitCode -eq 2) "jq $mode did not block with exit 2."
+            Assert-SDATest ($result.StdErr -match [regex]::Escape($cause)) "jq $mode cause missing: $($result.StdErr)"
+        }
+        Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $temporaryRoot), [StringComparison]::Ordinal)) "jq $mode probe changed fixture files."
+    }
+    'PASS: binary jq routing, legacy LF compatibility and fail-closed CRLF/error probes'
+}
+
 try {
     foreach ($command in @('bash', 'pwsh', 'jq')) {
         if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
@@ -453,6 +519,7 @@ try {
     Assert-SDATest ($positive.Bash.StdOut -eq $positive.PowerShell.StdOut) 'Status output differs between Bash and PowerShell.'
     $after = Get-SDATestSnapshot $temporaryRoot
     Assert-SDATest ([string]::Equals($before, $after, [StringComparison]::Ordinal)) 'Status changed fixture files.'
+    Test-SDAJqOutputMode -ExpectedStatus $positive.Bash.StdOut
     Test-SDAGateReviews
 
     Invoke-SDANegativeCase {

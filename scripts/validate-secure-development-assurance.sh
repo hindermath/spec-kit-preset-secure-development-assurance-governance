@@ -4,6 +4,7 @@ set -euo pipefail
 readonly EXTERNAL_COMPARISON_BOUNDARY='HOSK/GWDG: ExternalComparison only; never local evidence'
 readonly REQUIRED_SECURITY_VERSION='0.6.1'
 TEMP_FILES=()
+SDA_JQ=(jq)
 
 cleanup() {
   if (( ${#TEMP_FILES[@]} > 0 )); then
@@ -37,7 +38,7 @@ require_json_text() {
   local query="$2"
   local label="$3"
   local value
-  value="$(jq -er "$query | select(type == \"string\" and length > 0)" "$file" 2>/dev/null)" ||
+  value="$("${SDA_JQ[@]}" -er "$query | select(type == \"string\" and length > 0)" "$file" 2>/dev/null)" ||
     die "$label fehlt oder ist leer: $file"
   printf '%s\n' "$value"
 }
@@ -57,11 +58,11 @@ normalized_sha256() {
   # Native jq.exe kann normalisierte LF beim Ausgeben wieder in CRLF umwandeln.
   # Native jq.exe may turn normalized LF back into CRLF while writing output.
   if command -v sha256sum >/dev/null 2>&1; then
-    jq -jRs 'sub("^\uFEFF"; "") | gsub("\r\n?"; "\n")' "$file" |
+    "${SDA_JQ[@]}" -jRs 'sub("^\uFEFF"; "") | gsub("\r\n?"; "\n")' "$file" |
       tr -d '\r' |
       sha256sum | awk '{print $1}'
   else
-    jq -jRs 'sub("^\uFEFF"; "") | gsub("\r\n?"; "\n")' "$file" |
+    "${SDA_JQ[@]}" -jRs 'sub("^\uFEFF"; "") | gsub("\r\n?"; "\n")' "$file" |
       tr -d '\r' |
       shasum -a 256 | awk '{print $1}'
   fi
@@ -130,9 +131,9 @@ validate_review_metadata() {
 
 validate_assessments() {
   local file="$1"
-  jq -e '.assessments | type == "array" and length > 0' "$file" >/dev/null || die "Assessments fehlen: $file"
+  "${SDA_JQ[@]}" -e '.assessments | type == "array" and length > 0' "$file" >/dev/null || die "Assessments fehlen: $file"
   local duplicate_ids
-  duplicate_ids="$(jq -r '.assessments[].id // empty' "$file" | LC_ALL=C sort | uniq -d)"
+  duplicate_ids="$("${SDA_JQ[@]}" -r '.assessments[].id // empty' "$file" | LC_ALL=C sort | uniq -d)"
   [[ -z "$duplicate_ids" ]] || die "Doppelte Assessment-ID in $file: $duplicate_ids"
   while IFS=$'\t' read -r id applicability implementation evidence; do
     [[ -n "$id" ]] || die "Assessment-ID fehlt: $file"
@@ -142,23 +143,23 @@ validate_assessments() {
       *) die "Unzulässiger Umsetzungswert '$implementation' in $file." ;;
     esac
     [[ -n "$evidence" ]] || die "Evidence fehlt für Assessment $id: $file"
-  done < <(jq -r '.assessments[] | [(.id // ""),(.applicability // ""),(.implementation // ""),(.evidence // "")] | @tsv' "$file")
+  done < <("${SDA_JQ[@]}" -r '.assessments[] | [(.id // ""),(.applicability // ""),(.implementation // ""),(.evidence // "")] | @tsv' "$file")
 
-  jq -e '[.assessments[] | select(.applicability == "N/A") | select((.reason // "") == "" or (.reevaluationTrigger // "") == "")] | length == 0' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e '[.assessments[] | select(.applicability == "N/A") | select((.reason // "") == "" or (.reevaluationTrigger // "") == "")] | length == 0' "$file" >/dev/null ||
     die "N/A benötigt Begründung und Re-Evaluation-Trigger: $file"
-  jq -e '[.assessments[] | select(.applicability == "Open" or (.applicability == "Applicable" and .implementation != "Fulfilled")) | select((.nextAction // "") == "" or (.owner // "") == "" or (.dueAt // "") == "")] | length == 0' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e '[.assessments[] | select(.applicability == "Open" or (.applicability == "Applicable" and .implementation != "Fulfilled")) | select((.nextAction // "") == "" or (.owner // "") == "" or (.dueAt // "") == "")] | length == 0' "$file" >/dev/null ||
     die "Offene oder nicht erfüllte Punkte benötigen nächste Aktion, Owner und Zieltermin: $file"
 }
 
 validate_accepted_risks() {
   local file="$1"
-  jq -e '[(.acceptedRisks // [])[] | select((.owner // "") == "" or (.reviewer // "") == "" or (.reviewedAt // "") == "" or (.reviewDue // "") == "" or (.residualRisk // "") == "" or (.reevaluationTrigger // "") == "")] | length == 0' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e '[(.acceptedRisks // [])[] | select((.owner // "") == "" or (.reviewer // "") == "" or (.reviewedAt // "") == "" or (.reviewDue // "") == "" or (.residualRisk // "") == "" or (.reevaluationTrigger // "") == "")] | length == 0' "$file" >/dev/null ||
     die "Akzeptierte Risiken benötigen Owner, Reviewer, Reviewdatum, Restrisiko und Wiedervorlage: $file"
 }
 
 validate_claim_boundary() {
   local file="$1"
-  if jq -r '.. | strings' "$file" |
+  if "${SDA_JQ[@]}" -r '.. | strings' "$file" |
       grep -Eiq '(^|[^[:alnum:]])(c5[ -]?(compliant|certified|conformant|ready)|c5[- ]?(konform|zertifiziert|testatbereit)|iso[ /-]?[0-9]+[ -]?(compliant|certified|konform|zertifiziert)|testatbereit|attestation[- ]ready)([^[:alnum:]]|$)'; then
     die "Unzulässige Zertifizierungs-, Konformitäts- oder Testatbehauptung: $file"
   fi
@@ -168,8 +169,8 @@ validate_gate_file() {
   local file="$1"
   local expected_gate="$2"
   [[ -f "$file" ]] || die "Evidence fehlt: $file"
-  jq -e . "$file" >/dev/null || die "Ungültiges JSON: $file"
-  jq -e '.schemaVersion == "1.0" and .documentType == "SecureDevelopmentGateEvidence"' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e . "$file" >/dev/null || die "Ungültiges JSON: $file"
+  "${SDA_JQ[@]}" -e '.schemaVersion == "1.0" and .documentType == "SecureDevelopmentGateEvidence"' "$file" >/dev/null ||
     die "Evidence-Schema ist ungültig: $file"
   local gate outcome context_id mode
   gate="$(require_json_text "$file" '.gate' 'gate')"
@@ -185,14 +186,14 @@ validate_gate_file() {
   validate_accepted_risks "$file"
   validate_claim_boundary "$file"
   if [[ "$outcome" == 'Ready' ]]; then
-    jq -e '[.assessments[] | select(.applicability == "Open" or (.applicability == "Applicable" and .implementation != "Fulfilled"))] | length == 0' "$file" >/dev/null ||
+    "${SDA_JQ[@]}" -e '[.assessments[] | select(.applicability == "Open" or (.applicability == "Applicable" and .implementation != "Fulfilled"))] | length == 0' "$file" >/dev/null ||
       die "Ready ist bei offenen oder unerfüllten Pflichtpunkten unzulässig: $file"
   fi
   if [[ "$outcome" == 'ReadyWithAcceptedRisks' ]]; then
-    jq -e '.acceptedRisks | type == "array" and length > 0' "$file" >/dev/null ||
+    "${SDA_JQ[@]}" -e '.acceptedRisks | type == "array" and length > 0' "$file" >/dev/null ||
       die "ReadyWithAcceptedRisks benötigt mindestens ein akzeptiertes Risiko: $file"
   fi
-  jq -e --arg boundary "$EXTERNAL_COMPARISON_BOUNDARY" '.externalComparisonBoundary == $boundary' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e --arg boundary "$EXTERNAL_COMPARISON_BOUNDARY" '.externalComparisonBoundary == $boundary' "$file" >/dev/null ||
     die "Externe Vergleichsgrenze fehlt: $file"
 }
 
@@ -219,38 +220,38 @@ validate_baseline_contract() {
   [[ "$expected_manifest_hash" =~ ^[0-9a-f]{64}$ ]] || die 'baselineBinding.manifestNormalizedSha256 ist ungültig.'
   manifest_file="$PWD/$manifest_path"
   [[ -f "$manifest_file" ]] || die "Baseline-Manifest fehlt: $manifest_path"
-  jq -e . "$manifest_file" >/dev/null || die "Baseline-Manifest ist kein gültiges JSON: $manifest_path"
-  jq -e '.schemaVersion == 1 and (.checklists | type == "array" and length == 12)' "$manifest_file" >/dev/null ||
+  "${SDA_JQ[@]}" -e . "$manifest_file" >/dev/null || die "Baseline-Manifest ist kein gültiges JSON: $manifest_path"
+  "${SDA_JQ[@]}" -e '.schemaVersion == 1 and (.checklists | type == "array" and length == 12)' "$manifest_file" >/dev/null ||
     die "Baseline-Manifest benötigt Schema 1 und genau zwölf Checklisten: $manifest_path"
   actual_manifest_hash="$(normalized_sha256 "$manifest_file")"
   [[ "$actual_manifest_hash" == "$expected_manifest_hash" ]] || die "Manifest-Hashdrift: $manifest_path"
-  [[ "$(jq -r '.baselineVersion // empty' "$manifest_file")" == "$baseline_version" ]] || die 'Baseline-Version und Evidence-Bindung stimmen nicht überein.'
-  jq -e '.statusModel.applicability == ["Applicable","N/A","Open"] and .statusModel.implementation == ["Fulfilled","Partly Fulfilled","Not Fulfilled","Not Assessed"]' "$manifest_file" >/dev/null ||
+  [[ "$("${SDA_JQ[@]}" -r '.baselineVersion // empty' "$manifest_file")" == "$baseline_version" ]] || die 'Baseline-Version und Evidence-Bindung stimmen nicht überein.'
+  "${SDA_JQ[@]}" -e '.statusModel.applicability == ["Applicable","N/A","Open"] and .statusModel.implementation == ["Fulfilled","Partly Fulfilled","Not Fulfilled","Not Assessed"]' "$manifest_file" >/dev/null ||
     die 'Statusmodell im Baseline-Manifest ist ungültig.'
 
   local actual_ids expected_ids
-  actual_ids="$(jq -r '.checklists[].id' "$manifest_file" | LC_ALL=C sort)"
+  actual_ids="$("${SDA_JQ[@]}" -r '.checklists[].id' "$manifest_file" | LC_ALL=C sort)"
   expected_ids="$(printf 'CL-%02d\n' {1..12})"
   [[ "$actual_ids" == "$expected_ids" ]] || die 'Checklisten-IDs müssen eindeutig CL-01 bis CL-12 entsprechen.'
 
-  jq -e '.baselineBinding.documentBindings | type == "array" and length > 0' "$baseline_file" >/dev/null ||
+  "${SDA_JQ[@]}" -e '.baselineBinding.documentBindings | type == "array" and length > 0' "$baseline_file" >/dev/null ||
     die 'baselineBinding.documentBindings fehlt.'
   local duplicate_paths
-  duplicate_paths="$(jq -r '.baselineBinding.documentBindings[].path // empty' "$baseline_file" | LC_ALL=C sort | uniq -d)"
+  duplicate_paths="$("${SDA_JQ[@]}" -r '.baselineBinding.documentBindings[].path // empty' "$baseline_file" | LC_ALL=C sort | uniq -d)"
   [[ -z "$duplicate_paths" ]] || die "Doppelte Dokumentbindung: $duplicate_paths"
 
   local expected_count binding_count
-  expected_count="$(jq '1 + 1 + (.checklists | length) + (.relatedDocuments | length) + (.learningDocuments | length)' "$manifest_file")"
-  binding_count="$(jq '.baselineBinding.documentBindings | length' "$baseline_file")"
+  expected_count="$("${SDA_JQ[@]}" '1 + 1 + (.checklists | length) + (.relatedDocuments | length) + (.learningDocuments | length)' "$manifest_file")"
+  binding_count="$("${SDA_JQ[@]}" '.baselineBinding.documentBindings | length' "$baseline_file")"
   [[ "$binding_count" -eq "$expected_count" ]] || die "Dokumentbindungen unvollständig: erwartet $expected_count, gefunden $binding_count."
 
   while IFS=$'\t' read -r relative version kind; do
     validate_relative_path "$relative" 'Manifest-Dokumentpfad'
     local binding_count_for_path bound_version bound_hash full_path actual_hash
-    binding_count_for_path="$(jq --arg path "$relative" '[.baselineBinding.documentBindings[] | select(.path == $path)] | length' "$baseline_file")"
+    binding_count_for_path="$("${SDA_JQ[@]}" --arg path "$relative" '[.baselineBinding.documentBindings[] | select(.path == $path)] | length' "$baseline_file")"
     [[ "$binding_count_for_path" -eq 1 ]] || die "Dokumentbindung fehlt oder ist doppelt: $relative"
-    bound_version="$(jq -r --arg path "$relative" '.baselineBinding.documentBindings[] | select(.path == $path) | .version // empty' "$baseline_file")"
-    bound_hash="$(jq -r --arg path "$relative" '.baselineBinding.documentBindings[] | select(.path == $path) | .normalizedSha256 // empty' "$baseline_file")"
+    bound_version="$("${SDA_JQ[@]}" -r --arg path "$relative" '.baselineBinding.documentBindings[] | select(.path == $path) | .version // empty' "$baseline_file")"
+    bound_hash="$("${SDA_JQ[@]}" -r --arg path "$relative" '.baselineBinding.documentBindings[] | select(.path == $path) | .normalizedSha256 // empty' "$baseline_file")"
     [[ "$bound_version" == "$version" ]] || die "Versionsbindung stimmt nicht: $relative"
     [[ "$bound_hash" =~ ^[0-9a-f]{64}$ ]] || die "Hashbindung ist ungültig: $relative"
     full_path="$(dirname "$manifest_file")/$relative"
@@ -258,7 +259,7 @@ validate_baseline_contract() {
     actual_hash="$(normalized_sha256 "$full_path")"
     [[ "$actual_hash" == "$bound_hash" ]] || die "Dokument-Hashdrift: $relative"
     validate_document_version "$full_path" "$relative" "$version" "$kind"
-  done < <(jq -r '
+  done < <("${SDA_JQ[@]}" -r '
     [.guideline.path,.guideline.version,"guideline"],
     [.compendium.path,.compendium.version,"compendium"],
     (.checklists[] | [.path,.version,"checklist"]),
@@ -276,15 +277,15 @@ validate_baseline_contract() {
     checklist_file="$(dirname "$manifest_file")/$relative"
     grep -Fq "**Dokument-ID / Document ID:** $id" "$checklist_file" || die "Dokument-ID stimmt nicht: $relative"
     grep -Eo '^#### CL-[0-9]{2}-[0-9]{2}:' "$checklist_file" | sed 's/^#### //; s/:$//' >> "$ids_file"
-  done < <(jq -r '.checklists[] | [.id,.path,.version] | @tsv' "$manifest_file")
+  done < <("${SDA_JQ[@]}" -r '.checklists[] | [.id,.path,.version] | @tsv' "$manifest_file")
   local item_count actual_item_count
-  item_count="$(jq -r '.checklistItemCount' "$manifest_file")"
+  item_count="$("${SDA_JQ[@]}" -r '.checklistItemCount' "$manifest_file")"
   actual_item_count="$(wc -l < "$ids_file" | tr -d ' ')"
   [[ "$actual_item_count" -eq "$item_count" ]] || die "Checklistenmenge stimmt nicht: erwartet $item_count, gefunden $actual_item_count."
   [[ -z "$(LC_ALL=C sort "$ids_file" | uniq -d)" ]] || die 'Doppelte Prüfpunkte in den zwölf Checklisten.'
   grep -Fxq 'CL-02-13' "$ids_file" || die 'Der projektgeführte Prüfpunkt CL-02-13 Cloud-Compliance-Assurance fehlt.'
   local compendium_path
-  compendium_path="$(jq -r '.compendium.path' "$manifest_file")"
+  compendium_path="$("${SDA_JQ[@]}" -r '.compendium.path' "$manifest_file")"
   grep -Eo '^#### CL-[0-9]{2}-[0-9]{2}:' "$(dirname "$manifest_file")/$compendium_path" | sed 's/^#### //; s/:$//' > "$compendium_ids_file"
   [[ "$(LC_ALL=C sort "$ids_file")" == "$(LC_ALL=C sort "$compendium_ids_file")" ]] || die 'Sammelbanddrift gegenüber den zwölf Einzelchecklisten.'
   grep -Fq "**Baseline-Version / Baseline version:** $baseline_version" "$(dirname "$manifest_file")/$compendium_path" ||
@@ -294,35 +295,35 @@ validate_baseline_contract() {
   while IFS= read -r relative; do
     validate_relative_path "$relative" 'Verwalteter Referenzpfad'
     [[ -f "$(dirname "$manifest_file")/$relative" ]] || die "Verwaltete Referenz fehlt: $relative"
-  done < <(jq -r '(.managedBinaryFiles + .managedReferenceFiles)[]' "$manifest_file")
+  done < <("${SDA_JQ[@]}" -r '(.managedBinaryFiles + .managedReferenceFiles)[]' "$manifest_file")
 }
 
 validate_image_impact() {
   local file="$1"
-  jq -e '.imageChecks | has("build") and has("compose") and has("toolchain") and has("ociDigest") and has("sbom") and has("secrets") and has("mounts") and has("network") and has("ci")' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e '.imageChecks | has("build") and has("compose") and has("toolchain") and has("ociDigest") and has("sbom") and has("secrets") and has("mounts") and has("network") and has("ci")' "$file" >/dev/null ||
     die 'Image-Impact-Nachweise sind unvollständig.'
   while IFS=$'\t' read -r key value; do
     require_value "$value" 'Fulfilled Partly-Fulfilled Not-Fulfilled Not-Assessed N/A' "imageChecks.$key"
-  done < <(jq -r '.imageChecks | to_entries[] | [.key, (.value | gsub(" "; "-"))] | @tsv' "$file")
-  if [[ "$(jq -r '.outcome' "$file")" == 'Ready' ]]; then
-    jq -e '[.imageChecks[] | select(. != "Fulfilled" and . != "N/A")] | length == 0' "$file" >/dev/null ||
+  done < <("${SDA_JQ[@]}" -r '.imageChecks | to_entries[] | [.key, (.value | gsub(" "; "-"))] | @tsv' "$file")
+  if [[ "$("${SDA_JQ[@]}" -r '.outcome' "$file")" == 'Ready' ]]; then
+    "${SDA_JQ[@]}" -e '[.imageChecks[] | select(. != "Fulfilled" and . != "N/A")] | length == 0' "$file" >/dev/null ||
       die 'Ready ist bei offenen Image-Impact-Prüfungen unzulässig.'
   fi
 }
 
 validate_closure() {
   local file="$1"
-  jq -e '.humanDecisions | has("technicalValidation") and has("pilotAuthorization") and has("projectAcceptance") and has("generalRelease")' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e '.humanDecisions | has("technicalValidation") and has("pilotAuthorization") and has("projectAcceptance") and has("generalRelease")' "$file" >/dev/null ||
     die 'Getrennte Entscheidungsgrenzen fehlen.'
   while IFS=$'\t' read -r key status authority evidence; do
     require_value "$status" 'Fulfilled Open Blocked Not-Assessed' "humanDecisions.$key.status"
     [[ -n "$authority" && -n "$evidence" ]] || die "Entscheidungsgrenze ist unvollständig: $key"
-  done < <(jq -r '.humanDecisions | to_entries[] | [.key, (.value.status | gsub(" "; "-")), (.value.authority // ""), (.value.evidence // "")] | @tsv' "$file")
+  done < <("${SDA_JQ[@]}" -r '.humanDecisions | to_entries[] | [.key, (.value.status | gsub(" "; "-")), (.value.authority // ""), (.value.evidence // "")] | @tsv' "$file")
   local technical
-  technical="$(jq -r '.humanDecisions.technicalValidation.status' "$file")"
+  technical="$("${SDA_JQ[@]}" -r '.humanDecisions.technicalValidation.status' "$file")"
   for decision in pilotAuthorization projectAcceptance generalRelease; do
     local status
-    status="$(jq -r --arg key "$decision" '.humanDecisions[$key].status' "$file")"
+    status="$("${SDA_JQ[@]}" -r --arg key "$decision" '.humanDecisions[$key].status' "$file")"
     if [[ "$technical" != 'Fulfilled' && "$status" == 'Fulfilled' ]]; then
       die "Menschliche Freigabe darf technische Validierung nicht überspringen: $decision"
     fi
@@ -350,16 +351,16 @@ validate_context() {
 print_status() {
   local context_dir="$1"
   local baseline_outcome delta_outcome closure_outcome image_outcome overall next_action
-  baseline_outcome="$(jq -r '.outcome' "$context_dir/baseline.json")"
-  delta_outcome="$(find "$context_dir/deltas" -maxdepth 1 -type f -name '*.json' -print0 | xargs -0 -n1 jq -r '.outcome' | awk '
+  baseline_outcome="$("${SDA_JQ[@]}" -r '.outcome' "$context_dir/baseline.json")"
+  delta_outcome="$(find "$context_dir/deltas" -maxdepth 1 -type f -name '*.json' -print0 | xargs -0 -n1 "${SDA_JQ[@]}" -r '.outcome' | awk '
     BEGIN {result="Ready"}
     $0=="Blocked" {result="Blocked"}
     $0=="NeedsRemediation" && result!="Blocked" {result="NeedsRemediation"}
     $0=="ReadyWithAcceptedRisks" && result=="Ready" {result="ReadyWithAcceptedRisks"}
     END {print result}
   ')"
-  closure_outcome="$(jq -r '.outcome' "$context_dir/closure.json")"
-  image_outcome="$(jq -r '.outcome' "$context_dir/image-impact.json")"
+  closure_outcome="$("${SDA_JQ[@]}" -r '.outcome' "$context_dir/closure.json")"
+  image_outcome="$("${SDA_JQ[@]}" -r '.outcome' "$context_dir/image-impact.json")"
   overall="$(printf '%s\n' "$baseline_outcome" "$delta_outcome" "$closure_outcome" "$image_outcome" | awk '
     BEGIN {result="Ready"}
     $0=="Blocked" {result="Blocked"}
@@ -367,7 +368,7 @@ print_status() {
     $0=="ReadyWithAcceptedRisks" && result=="Ready" {result="ReadyWithAcceptedRisks"}
     END {print result}
   ')"
-  next_action="$(jq -r '.nextAction // empty' "$context_dir/closure.json")"
+  next_action="$("${SDA_JQ[@]}" -r '.nextAction // empty' "$context_dir/closure.json")"
   [[ -n "$next_action" ]] || next_action='No further technical action recorded.'
   printf 'Context: %s\n' "$context_dir"
   printf 'Gate baseline: %s\n' "$baseline_outcome"
@@ -376,12 +377,24 @@ print_status() {
   printf 'Gate image-impact: %s\n' "$image_outcome"
   printf 'Overall: %s\n' "$overall"
   for decision in technicalValidation pilotAuthorization projectAcceptance generalRelease; do
-    printf 'Decision %s: %s\n' "$decision" "$(jq -r --arg key "$decision" '.humanDecisions[$key].status' "$context_dir/closure.json")"
+    printf 'Decision %s: %s\n' "$decision" "$("${SDA_JQ[@]}" -r --arg key "$decision" '.humanDecisions[$key].status' "$context_dir/closure.json")"
   done
   printf 'Next action: %s\n' "$next_action"
 }
 
 require_command jq
+
+# Native Windows-Ausgaben brauchen --binary; POSIX-jq 1.6 bleibt ohne dieses Flag nutzbar.
+# Native Windows output needs --binary; POSIX jq 1.6 remains usable without that flag.
+if command jq --binary -n null >/dev/null 2>&1; then
+  SDA_JQ+=(--binary)
+else
+  jq_line_probe="$(command jq -nr '"a\nb"' 2>&1)" || die 'jq-Ausgabeprobe fehlgeschlagen / jq output probe failed.'
+  [[ "$jq_line_probe" != *$'\r'* ]] ||
+    die 'Dieses jq erzeugt CRLF und benötigt --binary-Unterstützung / This jq emits CRLF and requires --binary support.'
+  [[ "$jq_line_probe" == $'a\nb' ]] || die 'jq-Ausgabeprobe fehlgeschlagen / jq output probe failed.'
+fi
+readonly -a SDA_JQ
 
 action="${1:-status}"
 case "$action" in
@@ -427,10 +440,10 @@ case "$action" in
         die "Runbook fehlt für $mode: $gate-$context_id.md"
     else
       [[ -f "docs/runbooks/secure-development/$gate-$context_id.md" ]] ||
-        jq -e '.runbookApplicability == "N/A" and (.runbookRationale // "") != ""' "$gate_file" >/dev/null ||
+        "${SDA_JQ[@]}" -e '.runbookApplicability == "N/A" and (.runbookRationale // "") != ""' "$gate_file" >/dev/null ||
         die "Development benötigt Runbook oder begründetes N/A: $gate-$context_id.md"
     fi
-    printf 'Reviewed: gate=%s context=%s mode=%s outcome=%s\n' "$gate" "$context_id" "$mode" "$(jq -r '.outcome' "$gate_file")"
+    printf 'Reviewed: gate=%s context=%s mode=%s outcome=%s\n' "$gate" "$context_id" "$mode" "$("${SDA_JQ[@]}" -r '.outcome' "$gate_file")"
     ;;
   *) die "Unbekannte Aktion: $action" ;;
 esac

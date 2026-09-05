@@ -2,6 +2,7 @@ name: Assurance Preset Regression
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 

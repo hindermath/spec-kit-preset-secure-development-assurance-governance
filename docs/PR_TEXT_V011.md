@@ -12,7 +12,7 @@ Keep raw-byte change detection distinct from semantic source normalization.*
 
 ## Herkunft und Grenzen / Provenance and boundaries
 
-Kanonische Quelle: `hindermath/home-baseline`, Commit `a56df19`, unter
+Kanonische Quelle: `hindermath/home-baseline`, Commit `a59d929`, unter
 `specs/spec-kit-presets/secure-development-assurance-governance/`.
 Alle acht geaenderten Paketdateien stimmen mit der dort unabhaengig
 geprueften Quelle ueberein. Der CI-Workflow verwendet dieselben Befehle mit
@@ -33,6 +33,9 @@ updated with the patch; no evidence schema, API or approval semantics change.*
   Hidden-Enumeration und Byte-Mutationen werden getrennt geprueft.
 - Der normalisierte Bash-Hash entfernt CR, die natives Windows-jq nach der
   fachlichen Normalisierung erneut einfuegt. Rohe Snapshots bleiben bytegenau.
+- Alle JSON-Abfragen nutzen binaere Ausgabe, wenn unterstuetzt; altes
+  POSIX-jq bleibt ueber eine exakte LF-Probe kompatibel. Fehlerhafte oder
+  nicht unterstuetzte native CRLF-Ausgabe blockiert mit klarer Diagnose.
 - Keine automatische Erfuellung menschlicher Entscheidungen.
 - v0.1.0 bleibt unveraendert; v0.1.1 ist ein Feldtest-Kandidat, noch kein
   bestandener TinyCalc-Feldtest und keine Community-Einreichung.
@@ -48,6 +51,11 @@ limitation without claiming complete removal or changing the CLI.*
 
 *The normalized Bash hash removes CR bytes reintroduced by native Windows jq
 after semantic normalization. Raw read-only snapshots remain byte-exact.*
+
+*Central binary-output routing covers every JSON query, including xargs.
+Legacy POSIX LF output remains supported; faulty or unsupported native CRLF
+output fails closed. Tests normalize console transport only, not evidence
+bytes. The same three CI platforms run once per PR head and on main.*
 
 Owner-Freigabe: MergeAndSync, Admin-Bypass nur fuer formale Merge-Regeln,
 niemals fuer fehlgeschlagene materielle Gates.
