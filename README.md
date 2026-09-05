@@ -745,10 +745,16 @@ Agentenbefehle und macht den Read-only-Test deterministisch. Der Snapshot
 vergleicht ordinal sortierte relative Pfade und rohe SHA-256-Dateihashes;
 hinzugefügte, entfernte, umbenannte und versteckte Dateien bleiben sichtbar.
 Der fachliche Normalisierungsvertrag und das Evidence-Schema ändern sich nicht.
+Beim normalisierten Bash-Hash werden ausserdem die von Windows-`jq.exe`
+erneut erzeugten CR-Zeichen entfernt, nachdem alle fachlichen Zeilenenden
+bereits nach LF normalisiert wurden. Der rohe Read-only-Snapshot bleibt
+davon getrennt und erkennt weiterhin jede Byte-Aenderung.
 
 *Version 0.1.1 fixes generated command paths and deterministic read-only
 snapshots without changing the evidence schema or semantic normalization.
-It is a field-test candidate, not a claim of successful project acceptance.*
+The normalized Bash hash also removes CR bytes reintroduced by native Windows
+jq after line normalization. Raw read-only snapshots still detect every byte
+change. It is a field-test candidate, not a claim of project acceptance.*
 
 Vor Lieferung beide Regressionen ausführen:
 

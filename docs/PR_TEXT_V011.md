@@ -12,13 +12,13 @@ Keep raw-byte change detection distinct from semantic source normalization.*
 
 ## Herkunft und Grenzen / Provenance and boundaries
 
-Kanonische Quelle: `hindermath/home-baseline`, Commit `9e8f1e6`, unter
+Kanonische Quelle: `hindermath/home-baseline`, Commit `a56df19`, unter
 `specs/spec-kit-presets/secure-development-assurance-governance/`.
-Alle sieben geaenderten Paketdateien stimmen mit der dort unabhaengig
+Alle acht geaenderten Paketdateien stimmen mit der dort unabhaengig
 geprueften Quelle ueberein. Der CI-Workflow verwendet dieselben Befehle mit
 Paket-Root-Pfaden. Dokumentationsauswirkung: `UpdateRequired`.
 
-*The seven changed package files match the independently reviewed canonical
+*The eight changed package files match the independently reviewed canonical
 source. CI uses the same tests with package-root paths. Documentation is
 updated with the patch; no evidence schema, API or approval semantics change.*
 
@@ -31,6 +31,8 @@ updated with the patch; no evidence schema, API or approval semantics change.*
 - Generator-Body-Paritaet wird fuer alle acht Oberflaechen geprueft.
 - Windows-Testprozesse nutzen den ermittelten absoluten Programmpfad;
   Hidden-Enumeration und Byte-Mutationen werden getrennt geprueft.
+- Der normalisierte Bash-Hash entfernt CR, die natives Windows-jq nach der
+  fachlichen Normalisierung erneut einfuegt. Rohe Snapshots bleiben bytegenau.
 - Keine automatische Erfuellung menschlicher Entscheidungen.
 - v0.1.0 bleibt unveraendert; v0.1.1 ist ein Feldtest-Kandidat, noch kein
   bestandener TinyCalc-Feldtest und keine Community-Einreichung.
@@ -43,6 +45,9 @@ release acceptance or completion of the two planned TinyCalc field tests.*
 resolved executable paths; Windows hidden-file enumeration is kept separate
 from byte mutations. The runbook records a CLI 0.12.11 multi-agent uninstall
 limitation without claiming complete removal or changing the CLI.*
+
+*The normalized Bash hash removes CR bytes reintroduced by native Windows jq
+after semantic normalization. Raw read-only snapshots remain byte-exact.*
 
 Owner-Freigabe: MergeAndSync, Admin-Bypass nur fuer formale Merge-Regeln,
 niemals fuer fehlgeschlagene materielle Gates.

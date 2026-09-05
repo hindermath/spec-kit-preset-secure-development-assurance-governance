@@ -54,11 +54,15 @@ validate_relative_path() {
 
 normalized_sha256() {
   local file="$1"
+  # Native jq.exe kann normalisierte LF beim Ausgeben wieder in CRLF umwandeln.
+  # Native jq.exe may turn normalized LF back into CRLF while writing output.
   if command -v sha256sum >/dev/null 2>&1; then
     jq -jRs 'sub("^\uFEFF"; "") | gsub("\r\n?"; "\n")' "$file" |
+      tr -d '\r' |
       sha256sum | awk '{print $1}'
   else
     jq -jRs 'sub("^\uFEFF"; "") | gsub("\r\n?"; "\n")' "$file" |
+      tr -d '\r' |
       shasum -a 256 | awk '{print $1}'
   fi
 }
