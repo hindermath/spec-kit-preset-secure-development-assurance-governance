@@ -476,7 +476,7 @@ if command -v cygpath >/dev/null 2>&1; then
 fi
 chmod +x "$shim_root/jq"
 export SDA_JQ_TEST_MODE="$4" SDA_JQ_TEST_REAL="$real_jq" SDA_JQ_TEST_REAL_BINARY=0
-if "$real_jq" --binary -n null >/dev/null 2>&1; then export SDA_JQ_TEST_REAL_BINARY=1; fi
+if ( "$real_jq" --binary -n null >/dev/null 2>&1 ); then export SDA_JQ_TEST_REAL_BINARY=1; fi
 export PATH="$shim_root:$PATH"
 exec "$BASH" "$validator" status "$5"
 '@
@@ -495,8 +495,14 @@ exec "$BASH" "$validator" status "$5"
                 'legacy-crlf' { 'requires --binary support' }
                 'legacy-error' { 'jq output probe failed' }
             }
-            Assert-SDATest ($result.ExitCode -eq 2) "jq $mode did not block with exit 2."
-            Assert-SDATest ($result.StdErr -match [regex]::Escape($cause)) "jq $mode cause missing: $($result.StdErr)"
+            if ($result.ExitCode -ne 2 -or $result.StdErr -notmatch [regex]::Escape($cause)) {
+                # Ein Trace betrifft nur die synthetische Fehlfixture und ersetzt keine Gate-Bewertung.
+                # Trace the synthetic missing-context fixture only; it never replaces a gate result.
+                $traceLaunch = $launch.Replace('exec "$BASH" "$validator"', 'exec "$BASH" -x "$validator"')
+                $diagnostic = Invoke-SDATestProcess bash @('-c', $traceLaunch, 'sda-jq-trace', $shimRoot, $bashValidator, $jqPath, $mode, 'missing-context')
+                $trace = $diagnostic.StdErr.Substring(0, [Math]::Min(8192, $diagnostic.StdErr.Length))
+                Assert-SDATest $false "jq $mode unexpected result (exit=$($result.ExitCode)): stdout=[$($result.StdOut)] stderr=[$($result.StdErr)] diagnostic-only-trace=[$trace]"
+            }
         }
         Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $temporaryRoot), [StringComparison]::Ordinal)) "jq $mode probe changed fixture files."
     }

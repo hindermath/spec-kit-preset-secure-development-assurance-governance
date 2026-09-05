@@ -12,7 +12,7 @@ Keep raw-byte change detection distinct from semantic source normalization.*
 
 ## Herkunft und Grenzen / Provenance and boundaries
 
-Kanonische Quelle: `hindermath/home-baseline`, Commit `a59d929`, unter
+Kanonische Quelle: `hindermath/home-baseline`, Commit `4fcbc59`, unter
 `specs/spec-kit-presets/secure-development-assurance-governance/`.
 Alle acht geaenderten Paketdateien stimmen mit der dort unabhaengig
 geprueften Quelle ueberein. Der CI-Workflow verwendet dieselben Befehle mit
@@ -56,6 +56,14 @@ after semantic normalization. Raw read-only snapshots remain byte-exact.*
 Legacy POSIX LF output remains supported; faulty or unsupported native CRLF
 output fails closed. Tests normalize console transport only, not evidence
 bytes. The same three CI platforms run once per PR head and on main.*
+
+Der letzte native Stand besteht unter Linux und Windows; die neue Legacy-LF-
+Fixture blockiert noch auf macOS. Isolierte Capability-Proben und begrenzte
+synthetische Diagnosen ersetzen weder den Ursachenbeleg noch das Plattform-Gate.
+
+*The last native head passes Linux and Windows but remains blocked by the new
+legacy-LF fixture on macOS. Probe isolation and bounded synthetic diagnostics
+do not substitute for a proven cause or the native platform gate.*
 
 Owner-Freigabe: MergeAndSync, Admin-Bypass nur fuer formale Merge-Regeln,
 niemals fuer fehlgeschlagene materielle Gates.

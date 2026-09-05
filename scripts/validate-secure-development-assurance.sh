@@ -386,7 +386,7 @@ require_command jq
 
 # Native Windows-Ausgaben brauchen --binary; POSIX-jq 1.6 bleibt ohne dieses Flag nutzbar.
 # Native Windows output needs --binary; POSIX jq 1.6 remains usable without that flag.
-if command jq --binary -n null >/dev/null 2>&1; then
+if ( command jq --binary -n null >/dev/null 2>&1 ); then
   SDA_JQ+=(--binary)
 else
   jq_line_probe="$(command jq -nr '"a\nb"' 2>&1)" || die 'jq-Ausgabeprobe fehlgeschlagen / jq output probe failed.'
