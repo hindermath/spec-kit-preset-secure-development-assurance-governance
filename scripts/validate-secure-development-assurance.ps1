@@ -240,6 +240,15 @@ function Test-SDAAcceptedRisks {
     $risksProperty = $Document.PSObject.Properties['acceptedRisks']
     if (-not $risksProperty) { return }
     foreach ($risk in @($risksProperty.Value)) {
+        # Die Pipeline entpackt einteilige Arrays; den kanonischen Rohwert zuerst pruefen.
+        # The pipeline unwraps singleton arrays; check the canonical raw value first.
+        $idProperty = $risk.PSObject.Properties['id']
+        if (-not $idProperty -or $idProperty.Name -cne 'id') {
+            Stop-SDAValidation 'acceptedRisks.id fehlt.'
+        }
+        if ($idProperty.Value -is [Array]) {
+            Stop-SDAValidation 'acceptedRisks.id muss einzelner Text sein.'
+        }
         $id = Get-SDAText $risk 'id' 'acceptedRisks.id'
         foreach ($field in @('owner', 'reviewer', 'reviewedAt', 'reviewDue', 'residualRisk', 'reevaluationTrigger')) {
             $null = Get-SDAText $risk $field "acceptedRisks[${id}].${field}"
