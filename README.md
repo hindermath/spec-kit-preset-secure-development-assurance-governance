@@ -1,8 +1,8 @@
 # Secure Development Assurance Governance
 
-Version: `0.1.0`
+Version: `0.1.1`
 
-Status: öffentliches Erst-Release zur praktischen Erprobung
+Status: kompatible Patch-Version zur praktischen Erprobung
 
 Priorität: `15`
 
@@ -173,7 +173,7 @@ preset between them without granting execution or approval authority.*
 
 ~~~bash
 specify preset add \
-  --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.0.zip \
+  --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.1.zip \
   --priority 15
 
 specify preset info secure-development-assurance-governance
@@ -739,6 +739,30 @@ archive in a controlled project and execute the supplied field-test runbook.
 Corrections receive a new version; v0.1.0 is never rewritten.*
 
 ## 22. Versionierung und Support / Versioning and Support
+
+`v0.1.1` korrigiert die installierten Validatorpfade der generierten
+Agentenbefehle und macht den Read-only-Test deterministisch. Der Snapshot
+vergleicht ordinal sortierte relative Pfade und rohe SHA-256-Dateihashes;
+hinzugefügte, entfernte, umbenannte und versteckte Dateien bleiben sichtbar.
+Der fachliche Normalisierungsvertrag und das Evidence-Schema ändern sich nicht.
+
+*Version 0.1.1 fixes generated command paths and deterministic read-only
+snapshots without changing the evidence schema or semantic normalization.
+It is a field-test candidate, not a claim of successful project acceptance.*
+
+Vor Lieferung beide Regressionen ausführen:
+
+~~~powershell
+pwsh -NoProfile -File tests/test-secure-development-assurance.ps1
+pwsh -NoProfile -File tests/test-installed-surfaces.ps1
+~~~
+
+Der zweite Test erzeugt ein isoliertes Projekt und prüft acht generierte
+Status-/Review-Oberflächen unter Bash und PowerShell. `-ArchiveUrl` erlaubt
+denselben Test gegen das veröffentlichte HTTPS-Tag-ZIP.
+
+*The installation test executes all eight generated status/review surfaces.
+Use its ArchiveUrl parameter to repeat the test against the published ZIP.*
 
 `v0.1.0` ist das erste öffentliche Release und ausdrücklich für praktische
 Erprobung vorgesehen. Semantische Versionierung gilt:

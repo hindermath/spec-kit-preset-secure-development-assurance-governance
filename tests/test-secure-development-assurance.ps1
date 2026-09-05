@@ -4,7 +4,8 @@ Prüft den Secure-Development-Assurance-Vertrag und die Shell-Parität.
 
 .DESCRIPTION
 Erzeugt eine isolierte Fixture mit zwölf Checklisten und prüft positive,
-negative, Read-only-, UTF-8-BOM-, CRLF- und Bash-/PowerShell-Paritätsfälle.
+negative, Read-only-, Gate-Review-, Runbook-, UTF-8-BOM-, CRLF- und
+Bash-/PowerShell-Paritätsfälle.
 #>
 [CmdletBinding()]
 param()
@@ -54,6 +55,30 @@ function Get-SDATestHash {
     $text = $text.Replace(([string][char]13 + [char]10), [string][char]10)
     $text = $text.Replace([string][char]13, [string][char]10)
     return [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($strictUtf8.GetBytes($text))).ToLowerInvariant()
+}
+
+function Get-SDATestSnapshot {
+    param(
+        [Parameter(Mandatory)][string]$Directory,
+        [IO.FileInfo[]]$Files
+    )
+    if (-not $PSBoundParameters.ContainsKey('Files')) {
+        $Files = @(Get-ChildItem -LiteralPath $Directory -File -Recurse -Force)
+    }
+
+    # Byte-Treue und ordinale Pfade beweisen Read-only, nicht die fachliche Textnormalisierung.
+    # Raw bytes and ordinal paths prove read-only behavior, separate from semantic text normalization.
+    $entries = [Collections.Generic.SortedDictionary[string, string]]::new([StringComparer]::Ordinal)
+    foreach ($file in $Files) {
+        $relative = [IO.Path]::GetRelativePath($Directory, $file.FullName).Replace([IO.Path]::DirectorySeparatorChar, '/')
+        $entries.Add($relative, (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash)
+    }
+    $records = @(
+        foreach ($entry in $entries.GetEnumerator()) {
+            [ordered]@{ path = $entry.Key; sha256 = $entry.Value }
+        }
+    )
+    return ConvertTo-Json -InputObject $records -Depth 3 -Compress
 }
 
 function Read-SDATestJson {
@@ -284,6 +309,23 @@ function Invoke-SDATestPair {
     return [pscustomobject]@{ Bash = $bash; PowerShell = $pwsh }
 }
 
+function Invoke-SDAReviewPair {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('baseline', 'delta', 'closure', 'image-impact')]
+        [string]$Gate
+    )
+    $before = Get-SDATestSnapshot $temporaryRoot
+    $bash = Invoke-SDATestProcess bash @($bashValidator, 'review', $Gate, 'contract-test', 'mixed')
+    Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $temporaryRoot), [StringComparison]::Ordinal)) "Bash $Gate review changed fixture files."
+    $pwsh = Invoke-SDATestProcess pwsh @(
+        '-NoProfile', '-File', $powerShellValidator, '-Action', 'Review',
+        '-Gate', $Gate, '-ContextId', 'contract-test', '-Mode', 'mixed'
+    )
+    Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $temporaryRoot), [StringComparison]::Ordinal)) "PowerShell $Gate review changed fixture files."
+    return [pscustomobject]@{ Bash = $bash; PowerShell = $pwsh }
+}
+
 function Assert-SDATest {
     param(
         [Parameter(Mandatory)][bool]$Condition,
@@ -306,6 +348,91 @@ function Invoke-SDANegativeCase {
     Assert-SDATest (-not [string]::IsNullOrWhiteSpace($pair.PowerShell.StdErr)) "PowerShell cause missing: $ExpectedText"
 }
 
+function Test-SDATestSnapshot {
+    $snapshotRoot = Join-Path $temporaryRoot 'snapshot-regression'
+    foreach ($relative in @('Z.txt', 'a.txt', '.hidden', '.metadata/inside.txt')) {
+        Write-SDATestText (Join-Path $snapshotRoot $relative) "original`n"
+    }
+    if ($IsWindows) {
+        foreach ($relative in @('.hidden', '.metadata')) {
+            $hiddenPath = Join-Path $snapshotRoot $relative
+            [IO.File]::SetAttributes($hiddenPath, ([IO.File]::GetAttributes($hiddenPath) -bor [IO.FileAttributes]::Hidden))
+        }
+    }
+    $files = @(Get-ChildItem -LiteralPath $snapshotRoot -File -Recurse -Force)
+    $before = Get-SDATestSnapshot $snapshotRoot -Files $files
+    [array]::Reverse($files)
+    $reordered = Get-SDATestSnapshot $snapshotRoot -Files $files
+    Assert-SDATest ([string]::Equals($before, $reordered, [StringComparison]::Ordinal)) 'Snapshot depends on enumeration order.'
+    Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Snapshot omits hidden files.'
+
+    $records = @($before | ConvertFrom-Json)
+    Assert-SDATest (($records.path -join '|') -ceq '.hidden|.metadata/inside.txt|Z.txt|a.txt') 'Snapshot paths are not relative, normalized and ordinally sorted.'
+    foreach ($record in $records) {
+        $expectedHash = (Get-FileHash -LiteralPath (Join-Path $snapshotRoot $record.path) -Algorithm SHA256).Hash
+        Assert-SDATest ($record.sha256 -ceq $expectedHash) 'Snapshot does not contain the actual SHA-256 value.'
+    }
+
+    $mutablePath = Join-Path $snapshotRoot '.hidden'
+    $normalizedHash = Get-SDATestHash $mutablePath
+    Write-SDATestText $mutablePath "original`n" -Bom -CrLf
+    Assert-SDATest ($normalizedHash -ceq (Get-SDATestHash $mutablePath)) 'Semantic hash no longer normalizes BOM/CRLF.'
+    Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Raw snapshot missed a hidden-file BOM/CRLF change.'
+    Write-SDATestText $mutablePath "changed`n"
+    Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Snapshot missed changed content.'
+    Write-SDATestText $mutablePath "original`n"
+
+    $addedPath = Join-Path $snapshotRoot 'added.txt'
+    Write-SDATestText $addedPath 'added'
+    Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Snapshot missed an added file.'
+    Remove-Item -LiteralPath $addedPath
+    Remove-Item -LiteralPath $mutablePath -Force
+    Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Snapshot missed a deleted file.'
+    Write-SDATestText $mutablePath "original`n"
+    Rename-Item -LiteralPath $mutablePath -NewName '.renamed' -Force
+    Assert-SDATest (-not [string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Snapshot missed a renamed file.'
+    Rename-Item -LiteralPath (Join-Path $snapshotRoot '.renamed') -NewName '.hidden' -Force
+    Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $snapshotRoot), [StringComparison]::Ordinal)) 'Restored files did not restore the snapshot.'
+    Assert-SDATest ((Get-SDATestSnapshot $snapshotRoot -Files @()) -ceq '[]') 'Empty snapshot is not deterministic.'
+    'PASS: deterministic raw-byte snapshots, hidden files and mutation detection'
+}
+
+function Test-SDAGateReviews {
+    foreach ($gate in @('baseline', 'delta', 'closure', 'image-impact')) {
+        # Ein bestandener Validatorlauf ersetzt keine noch offene menschliche Freigabe.
+        # A successful validator run does not replace a human decision that remains open.
+        $outcome = if ($gate -eq 'closure') { 'NeedsRemediation' } else { 'Ready' }
+        $expectedOutput = "Reviewed: gate=$gate context=contract-test mode=mixed outcome=$outcome"
+        $pair = Invoke-SDAReviewPair $gate
+        Assert-SDATest ($pair.Bash.ExitCode -eq 0) "Bash $gate review failed: $($pair.Bash.StdErr)"
+        Assert-SDATest ($pair.PowerShell.ExitCode -eq 0) "PowerShell $gate review failed: $($pair.PowerShell.StdErr)"
+        Assert-SDATest ($pair.Bash.StdOut -ceq $expectedOutput) "Bash $gate review output is not the expected gate result."
+        Assert-SDATest ($pair.PowerShell.StdOut -ceq $expectedOutput) "PowerShell $gate review output differs from the expected Bash result."
+        Assert-SDATest ([string]::IsNullOrWhiteSpace($pair.Bash.StdErr)) "Bash $gate review wrote unexpected errors."
+        Assert-SDATest ([string]::IsNullOrWhiteSpace($pair.PowerShell.StdErr)) "PowerShell $gate review wrote unexpected errors."
+
+        $runbookPath = Join-Path $temporaryRoot "docs/runbooks/secure-development/$gate-contract-test.md"
+        $runbookText = Get-Content -LiteralPath $runbookPath -Raw
+        Remove-Item -LiteralPath $runbookPath
+        $missingRunbook = Invoke-SDAReviewPair $gate
+        foreach ($result in @($missingRunbook.Bash, $missingRunbook.PowerShell)) {
+            Assert-SDATest ($result.ExitCode -eq 2) "Missing $gate runbook did not block review."
+            Assert-SDATest ($result.StdErr -match [regex]::Escape('Runbook fehlt für mixed:')) "Missing $gate runbook cause is absent."
+            Assert-SDATest ($result.StdErr -match [regex]::Escape("$gate-contract-test.md")) "Missing $gate runbook path is absent."
+            Assert-SDATest ([string]::IsNullOrWhiteSpace($result.StdOut)) "Blocked $gate review reported successful output."
+        }
+        Write-SDATestText $runbookPath $runbookText
+    }
+
+    $closure = Read-SDATestJson (Join-Path $temporaryRoot "$contextRelative/closure.json")
+    Assert-SDATest ($closure.outcome -ceq 'NeedsRemediation') 'Gate reviews changed the closure outcome.'
+    Assert-SDATest ($closure.humanDecisions.technicalValidation.status -ceq 'Fulfilled') 'Gate reviews changed fixture technical validation.'
+    foreach ($decision in @('pilotAuthorization', 'projectAcceptance', 'generalRelease')) {
+        Assert-SDATest ($closure.humanDecisions.$decision.status -ceq 'Open') "Gate reviews granted an open human decision: $decision"
+    }
+    'PASS: four mixed-mode gate reviews, four missing-runbook blockers and unchanged human decisions'
+}
+
 try {
     foreach ($command in @('bash', 'pwsh', 'jq')) {
         if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
@@ -314,15 +441,15 @@ try {
     }
 
     New-SDATestFixture
-    $before = Get-ChildItem -LiteralPath (Join-Path $temporaryRoot $contextRelative) -File -Recurse |
-        ForEach-Object { "$($_.FullName)=$(Get-FileHash $_.FullName -Algorithm SHA256)" }
+    Test-SDATestSnapshot
+    $before = Get-SDATestSnapshot $temporaryRoot
     $positive = Invoke-SDATestPair
     Assert-SDATest ($positive.Bash.ExitCode -eq 0) "Positive Bash status failed: $($positive.Bash.StdErr)"
     Assert-SDATest ($positive.PowerShell.ExitCode -eq 0) "Positive PowerShell status failed: $($positive.PowerShell.StdErr)"
     Assert-SDATest ($positive.Bash.StdOut -eq $positive.PowerShell.StdOut) 'Status output differs between Bash and PowerShell.'
-    $after = Get-ChildItem -LiteralPath (Join-Path $temporaryRoot $contextRelative) -File -Recurse |
-        ForEach-Object { "$($_.FullName)=$(Get-FileHash $_.FullName -Algorithm SHA256)" }
-    Assert-SDATest (($before -join '|') -eq ($after -join '|')) 'Status changed evidence files.'
+    $after = Get-SDATestSnapshot $temporaryRoot
+    Assert-SDATest ([string]::Equals($before, $after, [StringComparison]::Ordinal)) 'Status changed fixture files.'
+    Test-SDAGateReviews
 
     Invoke-SDANegativeCase {
         Add-Content -LiteralPath (Join-Path $temporaryRoot 'docs/secure-development/baseline-manifest.json') -Value ' '

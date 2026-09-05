@@ -37,6 +37,14 @@ does not create one.*
 4. `specify preset info`, `specify preset resolve` und `specify check`
    ausführen.
 5. Prüfen, dass genau die beiden Befehle Status und Review erscheinen.
+6. `pwsh -NoProfile -File tests/test-installed-surfaces.ps1 -ArchiveUrl <https-tag-zip>`
+   aus der Preset-Quelle ausführen: acht erzeugte Agentenoberflächen müssen
+   vorhandene Validatoren aufrufen und bei fehlender Evidence mit Exitcode 2
+   blockieren. Fehlende Skripte sind kein bestandener Negativfall.
+
+*Execute the generated-surface test against the published archive. All eight
+surfaces must invoke existing validators; a missing script is not a valid
+negative evidence result.*
 
 ## Phase 2: Positiver Kontext
 
@@ -49,6 +57,12 @@ does not create one.*
 6. Bytegleiche fachliche Statuszeilen und Exitcode `0` bestätigen.
 7. Vorher-/Nachher-Hashes aller Evidence-Dateien vergleichen, um read-only
    nachzuweisen.
+8. Den Dateibestand einschließlich versteckter Dateien über normalisierte
+   relative Pfade ordinal sortieren und die tatsächlichen rohen SHA-256-Werte
+   vergleichen. Ergänzungen, Löschungen und Umbenennungen sind Änderungen.
+
+*Compare deterministically ordered relative paths and actual raw-byte hashes,
+including hidden files. Do not normalize away a write when proving read-only.*
 
 ## Phase 3: Bewusst blockierter Kontext
 
