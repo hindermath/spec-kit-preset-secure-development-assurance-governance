@@ -21,8 +21,9 @@ Führe auf macOS/Linux
 `bash .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.sh status`
 mit dem optionalen Evidence-Verzeichnis als letztem Argument aus.
 
-Die vollständigen installierten Pfade sind verbindlich. Top-Level-`scripts/`
-wird bei der Agentengenerierung umgeschrieben und ist kein Preset-Pfad.
+Die vollständigen installierten Pfade sind verbindlich. Das Top-Level-
+Skriptverzeichnis wird bei der Agentengenerierung umgeschrieben und ist kein
+Preset-Pfad.
 
 Der Befehl ist strikt read-only. Er darf keine Evidence, Richtlinie,
 Checkliste, Baseline, Freigabe, Git- oder Remote-Zustände verändern.

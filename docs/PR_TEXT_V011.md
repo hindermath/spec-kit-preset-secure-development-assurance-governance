@@ -12,7 +12,7 @@ Keep raw-byte change detection distinct from semantic source normalization.*
 
 ## Herkunft und Grenzen / Provenance and boundaries
 
-Kanonische Quelle: `hindermath/home-baseline`, Commit `476a4fe`, unter
+Kanonische Quelle: `hindermath/home-baseline`, Commit `9e8f1e6`, unter
 `specs/spec-kit-presets/secure-development-assurance-governance/`.
 Alle sieben geaenderten Paketdateien stimmen mit der dort unabhaengig
 geprueften Quelle ueberein. Der CI-Workflow verwendet dieselben Befehle mit
@@ -28,6 +28,9 @@ updated with the patch; no evidence schema, API or approval semantics change.*
   Shells und acht generierte Agentenoberflaechen bestanden.
 - PowerShell ScriptAnalyzer 1.25.0: keine Findings.
 - Native Linux/macOS/Windows-CI muss vor Merge bestehen.
+- Generator-Body-Paritaet wird fuer alle acht Oberflaechen geprueft.
+- Windows-Testprozesse nutzen den ermittelten absoluten Programmpfad;
+  Hidden-Enumeration und Byte-Mutationen werden getrennt geprueft.
 - Keine automatische Erfuellung menschlicher Entscheidungen.
 - v0.1.0 bleibt unveraendert; v0.1.1 ist ein Feldtest-Kandidat, noch kein
   bestandener TinyCalc-Feldtest und keine Community-Einreichung.
@@ -35,6 +38,11 @@ updated with the patch; no evidence schema, API or approval semantics change.*
 *Local contracts and regression checks pass. Native CI is a pre-merge gate.
 Human decisions stay open. The new immutable patch does not claim general
 release acceptance or completion of the two planned TinyCalc field tests.*
+
+*Generated-body parity is checked on all eight surfaces. Test processes use
+resolved executable paths; Windows hidden-file enumeration is kept separate
+from byte mutations. The runbook records a CLI 0.12.11 multi-agent uninstall
+limitation without claiming complete removal or changing the CLI.*
 
 Owner-Freigabe: MergeAndSync, Admin-Bypass nur fuer formale Merge-Regeln,
 niemals fuer fehlgeschlagene materielle Gates.

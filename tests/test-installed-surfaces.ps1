@@ -4,9 +4,11 @@ Prueft erzeugte Assurance-Befehle in einem isolierten Projekt.
 Tests generated assurance commands in an isolated project.
 .DESCRIPTION
 Installiert ausschliesslich in einem neuen temporaeren Git-Projekt. Prueft
-alle vier Agentenoberflaechen und fuehrt deren Validatorpfade ohne Evidence aus.
+alle vier Agentenoberflaechen auf unveraenderten kanonischen Inhalt und fuehrt
+deren Validatorpfade ohne Evidence aus.
 Installs only into a new temporary Git project. Checks all four agent surfaces
-and executes their validator paths against deliberately missing evidence.
+for preserved canonical content and executes their validator paths against
+deliberately missing evidence.
 .PARAMETER ArchiveUrl
 Optionales HTTPS-Release-ZIP statt der lokalen Preset-Quelle.
 Optional HTTPS release archive instead of the local preset source.
@@ -23,6 +25,21 @@ $ErrorActionPreference = 'Stop'
 $presetRoot = Split-Path -Parent $PSScriptRoot
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('sda-install-' + [guid]::NewGuid().ToString('N'))
 
+function Get-SDAInstalledCommandBody {
+    param([Parameter(Mandatory)][string]$Text)
+
+    # DE: Agenten-Metadaten duerfen variieren; der kanonische Befehlstext bleibt unveraendert.
+    # EN: Agent metadata may differ; the canonical command body must remain unchanged.
+    $normalized = $Text.Replace("`r`n", "`n")
+    if ($normalized.StartsWith("---`n", [StringComparison]::Ordinal)) {
+        $frontmatterEnd = $normalized.IndexOf("`n---`n", 4, [StringComparison]::Ordinal)
+        if ($frontmatterEnd -ge 0) { $normalized = $normalized.Substring($frontmatterEnd + 5) }
+    }
+    $body = $normalized.Trim()
+    if (-not $body) { throw 'Canonical command body is empty.' }
+    return $body
+}
+
 function Invoke-SDAInstalledCommand {
     param(
         [Parameter(Mandatory)][string]$Executable,
@@ -30,7 +47,9 @@ function Invoke-SDAInstalledCommand {
         [int]$ExpectedExitCode = 0
     )
     $info = [Diagnostics.ProcessStartInfo]::new()
-    $info.FileName = $Executable
+    # DE: Den geprueften Programmpfad starten, nicht Windows-Systemprogramme gleichen Namens.
+    # EN: Start the verified executable, not a same-named Windows system program.
+    $info.FileName = (Get-Command $Executable -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     $info.WorkingDirectory = $temporaryRoot
     $info.UseShellExecute = $false
     $info.RedirectStandardOutput = $true
@@ -66,10 +85,18 @@ try {
         '.github/agents/speckit.secure-development-{0}.agent.md',
         '.opencode/command/speckit.secure-development-{0}.md'
     )
+    $bodyDrifts = [Collections.Generic.List[string]]::new()
     foreach ($action in @('status', 'review')) {
+        $canonicalPath = Join-Path $temporaryRoot ".specify/presets/secure-development-assurance-governance/commands/speckit.secure-development-$action.md"
+        $canonicalBody = Get-SDAInstalledCommandBody (Get-Content -LiteralPath $canonicalPath -Raw)
         foreach ($pattern in $surfacePatterns) {
             $surface = $pattern -f $action
             $text = Get-Content -LiteralPath (Join-Path $temporaryRoot $surface) -Raw
+            $renderedBody = Get-SDAInstalledCommandBody $text
+            if (-not $renderedBody.Contains($canonicalBody, [StringComparison]::Ordinal)) {
+                $bodyDrifts.Add($surface)
+                continue
+            }
             foreach ($extension in @('sh', 'ps1')) {
                 $validator = ".specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.$extension"
                 if (-not $text.Contains($validator) -or $text.Contains(".specify/scripts/validate-secure-development-assurance.$extension")) {
@@ -98,8 +125,11 @@ try {
                     throw "Expected evidence diagnostic missing: $surface ($extension): $validationOutput"
                 }
             }
-            Write-Output "PASS: $surface (Bash and PowerShell fail closed)"
+            Write-Output "PASS: $surface (canonical body preserved; Bash and PowerShell fail closed)"
         }
+    }
+    if ($bodyDrifts.Count -gt 0) {
+        throw "Generated canonical body drift: $($bodyDrifts -join ', ')"
     }
 }
 finally {

@@ -287,7 +287,9 @@ function Invoke-SDATestProcess {
         [Parameter(Mandatory)][string[]]$Arguments
     )
     $info = [Diagnostics.ProcessStartInfo]::new()
-    $info.FileName = $FilePath
+    # Windows kann vor PATH den WSL-Stub finden; der Test bindet das zuvor erkannte Programm.
+    # Windows may find the WSL stub before PATH; bind the executable selected by command discovery.
+    $info.FileName = (Get-Command $FilePath -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     $info.WorkingDirectory = $temporaryRoot
     $info.UseShellExecute = $false
     $info.RedirectStandardOutput = $true
@@ -446,8 +448,8 @@ try {
     Test-SDATestSnapshot
     $before = Get-SDATestSnapshot $temporaryRoot
     $positive = Invoke-SDATestPair
-    Assert-SDATest ($positive.Bash.ExitCode -eq 0) "Positive Bash status failed: $($positive.Bash.StdErr)"
-    Assert-SDATest ($positive.PowerShell.ExitCode -eq 0) "Positive PowerShell status failed: $($positive.PowerShell.StdErr)"
+    Assert-SDATest ($positive.Bash.ExitCode -eq 0) "Positive Bash status failed (exit=$($positive.Bash.ExitCode)): stdout=[$($positive.Bash.StdOut)] stderr=[$($positive.Bash.StdErr)]"
+    Assert-SDATest ($positive.PowerShell.ExitCode -eq 0) "Positive PowerShell status failed (exit=$($positive.PowerShell.ExitCode)): stdout=[$($positive.PowerShell.StdOut)] stderr=[$($positive.PowerShell.StdErr)]"
     Assert-SDATest ($positive.Bash.StdOut -eq $positive.PowerShell.StdOut) 'Status output differs between Bash and PowerShell.'
     $after = Get-SDATestSnapshot $temporaryRoot
     Assert-SDATest ([string]::Equals($before, $after, [StringComparison]::Ordinal)) 'Status changed fixture files.'

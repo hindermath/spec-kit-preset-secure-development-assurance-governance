@@ -19,7 +19,7 @@ mit `-Action Review -Gate <gate> -ContextId <context-id> -Mode <mode>` aus.
 Führe auf macOS/Linux
 `bash .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.sh`
 mit `review <gate> <context-id> <mode>` aus. Die vollständigen installierten
-Pfade dürfen nicht zu Top-Level-`scripts/` verkürzt werden.
+Pfade dürfen nicht auf das Top-Level-Skriptverzeichnis verkürzt werden.
 
 - `training` und `mixed` benötigen ein Gate-spezifisches Runbook.
 - `development` benötigt ein Runbook oder `runbookApplicability: "N/A"` mit
