@@ -14,10 +14,16 @@ Prüfe das ausdrücklich angegebene Evidence-Verzeichnis. Fehlt der Parameter,
 verwende das lexikografisch neueste Verzeichnis unter
 `docs/security/secure-development/`.
 
-Führe auf Windows
-`scripts/validate-secure-development-assurance.ps1` mit `-Action Status` aus.
+Führe vom Projektwurzelverzeichnis auf Windows
+`pwsh -NoProfile -File .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.ps1`
+mit `-Action Status` und gegebenenfalls `-EvidenceDirectory <evidence-dir>` aus.
 Führe auf macOS/Linux
-`scripts/validate-secure-development-assurance.sh status` aus.
+`bash .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.sh status`
+mit dem optionalen Evidence-Verzeichnis als letztem Argument aus.
+
+Die vollständigen installierten Pfade sind verbindlich. Das Top-Level-
+Skriptverzeichnis wird bei der Agentengenerierung umgeschrieben und ist kein
+Preset-Pfad.
 
 Der Befehl ist strikt read-only. Er darf keine Evidence, Richtlinie,
 Checkliste, Baseline, Freigabe, Git- oder Remote-Zustände verändern.
@@ -39,6 +45,9 @@ als menschliche Freigabe ausgegeben werden.
 
 ## English
 
+Run the explicit installed validator path from the project root using Bash
+or PowerShell. Do not shorten it to a top-level scripts directory: command
+generation rewrites that directory to a different location.
 Inspect the selected evidence directory without changing it. Validate the
 complete baseline binding and all four gates. Report every gate, the worst
 overall outcome, all four human decision boundaries, and the exact recorded

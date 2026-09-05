@@ -37,6 +37,14 @@ does not create one.*
 4. `specify preset info`, `specify preset resolve` und `specify check`
    ausführen.
 5. Prüfen, dass genau die beiden Befehle Status und Review erscheinen.
+6. `pwsh -NoProfile -File tests/test-installed-surfaces.ps1 -ArchiveUrl <https-tag-zip>`
+   aus der Preset-Quelle ausführen: acht erzeugte Agentenoberflächen müssen
+   vorhandene Validatoren aufrufen und bei fehlender Evidence mit Exitcode 2
+   blockieren. Fehlende Skripte sind kein bestandener Negativfall.
+
+*Execute the generated-surface test against the published archive. All eight
+surfaces must invoke existing validators; a missing script is not a valid
+negative evidence result.*
 
 ## Phase 2: Positiver Kontext
 
@@ -49,6 +57,12 @@ does not create one.*
 6. Bytegleiche fachliche Statuszeilen und Exitcode `0` bestätigen.
 7. Vorher-/Nachher-Hashes aller Evidence-Dateien vergleichen, um read-only
    nachzuweisen.
+8. Den Dateibestand einschließlich versteckter Dateien über normalisierte
+   relative Pfade ordinal sortieren und die tatsächlichen rohen SHA-256-Werte
+   vergleichen. Ergänzungen, Löschungen und Umbenennungen sind Änderungen.
+
+*Compare deterministically ordered relative paths and actual raw-byte hashes,
+including hidden files. Do not normalize away a write when proving read-only.*
 
 ## Phase 3: Bewusst blockierter Kontext
 
@@ -98,6 +112,29 @@ kontrollierten Review aus. Prüfe:
 4. Assurance-Preset reaktivieren und erneut prüfen.
 5. Assurance-Preset entfernen und bestehende Profile 8 bis 12 prüfen.
 6. Aus dem Tag-ZIP erneut installieren.
+
+### Bekannte CLI-Grenze / Known CLI limitation
+
+Mit Spec Kit 0.12.11 und mehreren Agenten kann `preset remove` zwei erzeugte
+Claude-Skills zuruecklassen, wenn Codex die aktive Integration ist. Deshalb
+nach der Entfernung auch `.claude/skills/speckit-secure-development-status/`
+und `.claude/skills/speckit-secure-development-review/` kontrollieren.
+Ein gruener Matrixcheck beweist nicht, dass diese Dateien entfernt wurden.
+Die verwaisten Skills haben keinen installierten Validator und sind nicht
+benutzbar. Fuer eine echte Deinstallation nur die nach Herkunft, Hash und
+lokalen Aenderungen geprueften generierten Dateien gezielt entfernen;
+eigene Anpassungen bewahren. Eine Wiederinstallation erzeugt sie erneut.
+Diese CLI-Grenze getrennt im Feldbericht auffuehren; kein impliziter
+Erfolgsnachweis und keine automatische CLI-Aenderung.
+
+*With Spec Kit 0.12.11, multi-agent removal can leave two generated Claude
+skills when Codex is the active integration. Check both named directories;
+an exact preset matrix does not prove their removal. The orphaned skills
+cannot run without their validators. For an actual uninstall, remove only
+verified generated files after checking origin, hashes and local changes;
+preserve user edits. Reinstallation generates the files again. Report this
+CLI limitation separately rather than claiming complete removal or silently
+patching the CLI.*
 
 ## Phase 7: Ergebnis
 
