@@ -153,6 +153,12 @@ validate_assessments() {
 
 validate_accepted_risks() {
   local file="$1"
+  # Wie IsNullOrWhiteSpace in PowerShell: kein Typ-Coercing und dieselben Unicode-Leerzeichen.
+  # Match PowerShell IsNullOrWhiteSpace: no type coercion and the same Unicode whitespace.
+  "${SDA_JQ[@]}" -e 'all((.acceptedRisks // [])[];
+    (.id? // null) | if type == "string" then
+      test("[^\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]")
+    else false end)' "$file" >/dev/null || die "acceptedRisks.id fehlt oder ist leer: $file"
   "${SDA_JQ[@]}" -e '[(.acceptedRisks // [])[] | select((.owner // "") == "" or (.reviewer // "") == "" or (.reviewedAt // "") == "" or (.reviewDue // "") == "" or (.residualRisk // "") == "" or (.reevaluationTrigger // "") == "")] | length == 0' "$file" >/dev/null ||
     die "Akzeptierte Risiken benötigen Owner, Reviewer, Reviewdatum, Restrisiko und Wiedervorlage: $file"
 }
@@ -169,7 +175,9 @@ validate_gate_file() {
   local file="$1"
   local expected_gate="$2"
   [[ -f "$file" ]] || die "Evidence fehlt: $file"
-  "${SDA_JQ[@]}" -e . "$file" >/dev/null || die "Ungültiges JSON: $file"
+  # Ein Evidence-Artefakt ist genau ein JSON-Dokument, kein auswertbarer JSON-Datenstrom.
+  # An evidence artefact is exactly one JSON document, not an evaluable JSON stream.
+  "${SDA_JQ[@]}" -se 'length == 1' "$file" >/dev/null || die "Ungültiges JSON: $file"
   "${SDA_JQ[@]}" -e '.schemaVersion == "1.0" and .documentType == "SecureDevelopmentGateEvidence"' "$file" >/dev/null ||
     die "Evidence-Schema ist ungültig: $file"
   local gate outcome context_id mode

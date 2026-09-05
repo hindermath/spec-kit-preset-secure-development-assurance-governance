@@ -1,6 +1,6 @@
 # Secure Development Assurance Governance
 
-Version: `0.1.1`
+Version: `0.1.2`
 
 Status: kompatible Patch-Version zur praktischen Erprobung
 
@@ -173,7 +173,7 @@ preset between them without granting execution or approval authority.*
 
 ~~~bash
 specify preset add \
-  --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.1.zip \
+  --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.2.zip \
   --priority 15
 
 specify preset info secure-development-assurance-governance
@@ -739,6 +739,25 @@ archive in a controlled project and execute the supplied field-test runbook.
 Corrections receive a new version; v0.1.0 is never rewritten.*
 
 ## 22. Versionierung und Support / Versioning and Support
+
+`v0.1.2` korrigiert SDA-FT-003 an der gemeinsamen Risiko-Pruefgrenze fuer
+Status und alle vier Gate-Reviews. `acceptedRisks.id` muss in beiden Shells
+ein einzelner Text mit mindestens einem Nicht-Leerzeichen sein. Fehlende,
+leere, nur aus Unicode-Leerzeichen bestehende und nicht skalare IDs blockieren
+mit Exit 2; auch PowerShell darf eine einteilige Liste nicht in eine Text-ID
+umdeuten. Der kanonische Feldname ist `id`. Gueltige Texte bleiben ohne
+Kuerzung, Normalisierung oder neue Formatvorgabe erhalten. Die gemeinsame
+Bash-Gate-Grenze akzeptiert genau eine JSON-Wurzel; verkettete JSON-Dokumente
+blockieren ebenfalls mit Exit 2. Die bestehenden Releases `v0.1.0` und
+`v0.1.1` werden nicht ueberschrieben.
+
+*Version 0.1.2 fixes the shared accepted-risk ID boundary used by status and
+all four reviews. Both shells require canonical `id` to be scalar, nonblank
+text. Invalid IDs fail with exit 2; PowerShell must not unwrap a singleton
+list into a valid ID. Valid strings remain unchanged without a new format
+restriction. The shared Bash gate boundary accepts exactly one JSON root, so
+concatenated documents also fail with exit 2. Preserve both earlier releases
+and all human decision boundaries.*
 
 `v0.1.1` korrigiert die installierten Validatorpfade der generierten
 Agentenbefehle und macht den Read-only-Test deterministisch. Der Snapshot
