@@ -69,3 +69,33 @@ The tools validate the project-owned secure-development baseline and four
 evidence gates. Status is read-only. Review is bounded to one gate. Exit code
 zero confirms only the technical evidence contract; it grants no human
 authorization, certification, or C5 readiness.
+
+## Kontextbindung und Risikotypen / Context Binding and Risk Types
+
+Ab v0.1.3 muss ein Review genau ein Verzeichnis
+`<YYYY-MM-DD>-<context-id>` finden. Die ID wird vollständig und mit
+Groß-/Kleinschreibung verglichen: `foo` bezeichnet nicht `bar-foo`.
+Mehrere datierte Verzeichnisse derselben ID blockieren; es wird nicht
+stillschweigend das neueste gewählt. Die `contextId` und `mode` der
+ausgewählten Gate-Evidence müssen exakt dem Auftrag entsprechen.
+Bei Abweichung: Exitcode 2, keine Erfolgsmeldung, keine Evidence-Änderung.
+Vor Wiederholung den gewünschten Kontext und Auftrag fachlich klären;
+keine Evidence allein zum Bestehen des Validators umbenennen oder freigeben.
+
+Wenn `acceptedRisks` vorhanden ist, muss es ein JSON-Array sein.
+Ein einzelnes Risiko steht in `[{...}]`, nicht in `{...}`.
+`null`, boolesche Werte, Zahlen und Zeichenketten sind unzulässig.
+Ein leeres Array ist zulässig, jedoch nicht bei `ReadyWithAcceptedRisks`.
+Fehlende optionale `acceptedRisks` bleiben bei anderen Ergebnissen zulässig.
+Die vorhandenen Pflichtfelder jedes Risikos gelten unverändert.
+
+*From v0.1.3, review requires exactly one dated directory with the full,
+case-sensitive context ID. Suffix matches and duplicate dated contexts are
+rejected. Evidence contextId and mode must exactly match the request.
+Failure returns exit 2 without success output or evidence writes.
+Clarify the intended context before retrying; never rename or approve evidence
+merely to satisfy validation. When present, acceptedRisks must be a JSON
+array; one risk uses [{...}], not {...}. Null, booleans, numbers and strings
+are invalid. Empty arrays are allowed except for ReadyWithAcceptedRisks.
+Other outcomes may omit the optional field. Risk metadata requirements and
+all human decision boundaries remain unchanged.*
