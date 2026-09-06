@@ -239,6 +239,9 @@ function Test-SDAAcceptedRisks {
     )
     $risksProperty = $Document.PSObject.Properties['acceptedRisks']
     if (-not $risksProperty) { return }
+    if ($risksProperty.Name -cne 'acceptedRisks' -or $risksProperty.Value -isnot [Array]) {
+        Stop-SDAValidation 'acceptedRisks muss ein JSON-Array sein.'
+    }
     foreach ($risk in @($risksProperty.Value)) {
         # Die Pipeline entpackt einteilige Arrays; den kanonischen Rohwert zuerst pruefen.
         # The pipeline unwraps singleton arrays; check the canonical raw value first.
@@ -301,7 +304,7 @@ function Test-SDAGateFile {
         }
     }
     if ($outcome -eq 'ReadyWithAcceptedRisks') {
-        $risks = if ($document.PSObject.Properties['acceptedRisks']) { @($document.acceptedRisks) } else { @() }
+        $risks = @($document.acceptedRisks)
         if ($risks.Count -eq 0) {
             Stop-SDAValidation "ReadyWithAcceptedRisks benötigt mindestens ein akzeptiertes Risiko: ${Path}"
         }
@@ -561,15 +564,20 @@ try {
     if (-not $Gate -or -not $ContextId -or -not $Mode) {
         Stop-SDAValidation 'Review benötigt Gate, ContextId und Mode.'
     }
-    if ($ContextId -notmatch '^[a-z0-9][a-z0-9-]*$') {
+    if ($ContextId -cnotmatch '^[a-z0-9][a-z0-9-]*$') {
         Stop-SDAValidation 'ContextId ist ungültig.'
     }
-    $contextDirectory = Get-ChildItem -LiteralPath 'docs/security/secure-development' -Directory -Filter "*-${ContextId}" |
-        Sort-Object Name |
-        Select-Object -Last 1 -ExpandProperty FullName
-    if (-not $contextDirectory) {
+    # Vollstaendige IDs und eindeutige Auswahl binden den Auftrag, nie ein passendes Suffix.
+    # Full IDs and unique selection bind the request, never a matching suffix.
+    $contextMatches = @(Get-ChildItem -LiteralPath 'docs/security/secure-development' -Directory |
+        Where-Object { $_.Name -cmatch ('^[0-9]{4}-[0-9]{2}-[0-9]{2}-' + [regex]::Escape($ContextId) + '$') })
+    if ($contextMatches.Count -eq 0) {
         Stop-SDAValidation "Kontext nicht gefunden: ${ContextId}"
     }
+    if ($contextMatches.Count -ne 1) {
+        Stop-SDAValidation "Kontext muss genau einmal vorhanden sein: ${ContextId}"
+    }
+    $contextDirectory = $contextMatches[0].FullName
     switch ($Gate) {
         'baseline' {
             $gateFile = Join-Path $contextDirectory 'baseline.json'
@@ -593,6 +601,12 @@ try {
             if (-not $gateFile) { Stop-SDAValidation 'Delta-Evidence fehlt.' }
             $document = Test-SDAGateFile $gateFile delta
         }
+    }
+    if ((Get-SDAText $document 'contextId' 'contextId') -cne $ContextId) {
+        Stop-SDAValidation "Kontext-ID-Drift: ${gateFile}"
+    }
+    if ((Get-SDAText $document 'mode' 'mode') -cne $Mode) {
+        Stop-SDAValidation "Betriebsart-Drift: ${gateFile}"
     }
     $runbook = "docs/runbooks/secure-development/${Gate}-${ContextId}.md"
     if ($Mode -ne 'development') {

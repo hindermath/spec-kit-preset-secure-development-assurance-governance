@@ -153,6 +153,8 @@ validate_assessments() {
 
 validate_accepted_risks() {
   local file="$1"
+  "${SDA_JQ[@]}" -e 'if has("acceptedRisks") then (.acceptedRisks | type == "array") else true end' "$file" >/dev/null ||
+    die "acceptedRisks muss ein JSON-Array sein: $file"
   # Wie IsNullOrWhiteSpace in PowerShell: kein Typ-Coercing und dieselben Unicode-Leerzeichen.
   # Match PowerShell IsNullOrWhiteSpace: no type coercion and the same Unicode whitespace.
   "${SDA_JQ[@]}" -e 'all((.acceptedRisks // [])[];
@@ -419,8 +421,15 @@ case "$action" in
     require_value "$gate" 'baseline delta closure image-impact' 'gate'
     require_value "$mode" 'training mixed development' 'mode'
     [[ "$context_id" =~ ^[a-z0-9][a-z0-9-]*$ ]] || die 'context-id ist ungültig.'
-    context_dir="$(find docs/security/secure-development -mindepth 1 -maxdepth 1 -type d -name "*-$context_id" | LC_ALL=C sort | tail -n 1)"
-    [[ -n "$context_dir" ]] || die "Kontext nicht gefunden: $context_id"
+    # Nur die volle ID hinter dem Datum bindet Autoritaet; Mehrdeutigkeit wird nicht aufgeloest.
+    # Only the full ID after the date binds authority; never guess among duplicate contexts.
+    context_matches=()
+    while IFS= read -r candidate; do
+      [[ "${candidate##*/}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-${context_id}$ ]] && context_matches+=("$candidate")
+    done < <(find docs/security/secure-development -mindepth 1 -maxdepth 1 -type d 2>/dev/null)
+    [[ ${#context_matches[@]} -gt 0 ]] || die "Kontext nicht gefunden: $context_id"
+    [[ ${#context_matches[@]} -eq 1 ]] || die "Kontext muss genau einmal vorhanden sein: $context_id"
+    context_dir="${context_matches[0]}"
     case "$gate" in
       baseline)
         gate_file="$context_dir/baseline.json"
@@ -443,6 +452,8 @@ case "$action" in
         validate_gate_file "$gate_file" delta
         ;;
     esac
+    [[ "$(require_json_text "$gate_file" '.contextId' 'contextId')" == "$context_id" ]] || die "Kontext-ID-Drift: $gate_file"
+    [[ "$(require_json_text "$gate_file" '.mode' 'mode')" == "$mode" ]] || die "Betriebsart-Drift: $gate_file"
     if [[ "$mode" != development ]]; then
       [[ -f "docs/runbooks/secure-development/$gate-$context_id.md" ]] ||
         die "Runbook fehlt für $mode: $gate-$context_id.md"

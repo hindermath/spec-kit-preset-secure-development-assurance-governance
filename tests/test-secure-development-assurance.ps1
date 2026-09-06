@@ -317,14 +317,16 @@ function Invoke-SDAReviewPair {
     param(
         [Parameter(Mandatory)]
         [ValidateSet('baseline', 'delta', 'closure', 'image-impact')]
-        [string]$Gate
+        [string]$Gate,
+        [string]$ContextId = 'contract-test',
+        [string]$Mode = 'mixed'
     )
     $before = Get-SDATestSnapshot $temporaryRoot
-    $bash = Invoke-SDATestProcess bash @($bashValidator, 'review', $Gate, 'contract-test', 'mixed')
+    $bash = Invoke-SDATestProcess bash @($bashValidator, 'review', $Gate, $ContextId, $Mode)
     Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $temporaryRoot), [StringComparison]::Ordinal)) "Bash $Gate review changed fixture files."
     $pwsh = Invoke-SDATestProcess pwsh @(
         '-NoProfile', '-File', $powerShellValidator, '-Action', 'Review',
-        '-Gate', $Gate, '-ContextId', 'contract-test', '-Mode', 'mixed'
+        '-Gate', $Gate, '-ContextId', $ContextId, '-Mode', $Mode
     )
     Assert-SDATest ([string]::Equals($before, (Get-SDATestSnapshot $temporaryRoot), [StringComparison]::Ordinal)) "PowerShell $Gate review changed fixture files."
     return [pscustomobject]@{ Bash = $bash; PowerShell = $pwsh }
@@ -447,6 +449,75 @@ function Test-SDAAcceptedRiskIds {
     Write-SDATestText $deltaPath $validDeltaText
 
     'PASS: scalar nonblank accepted-risk IDs, single JSON roots, status/all gate reviews and unchanged evidence'
+}
+
+function Test-SDAContextAndRiskTypes {
+    New-SDATestFixture
+    $failures = [Collections.Generic.List[string]]::new()
+    function Assert-BlockedPair($Pair, [string]$Case) {
+        foreach ($shell in @('Bash', 'PowerShell')) {
+            $result = $Pair.$shell
+            if ($result.ExitCode -ne 2 -or $result.StdOut -ne '' -or $result.StdErr -eq '') {
+                $failures.Add("${Case}/${shell}: $($result | ConvertTo-Json -Compress)")
+            }
+        }
+    }
+    $paths = [ordered]@{ baseline='baseline.json'; delta='deltas/change.json'; closure='closure.json'; 'image-impact'='image-impact.json' }
+    $contextPath = Join-Path $temporaryRoot $contextRelative
+    # Ein Suffix ist keine Identitaet; die falsche Auswahl muss trotz gueltigem Runbook blockieren.
+    # A suffix is not identity; reject the wrong context even with a valid requested runbook.
+    foreach ($gate in $paths.Keys) {
+        Write-SDATestText (Join-Path $temporaryRoot "docs/runbooks/secure-development/$gate-test.md") '# Fixture runbook'
+        Assert-BlockedPair (Invoke-SDAReviewPair $gate -ContextId test) "suffix/$gate"
+        $path = Join-Path $contextPath $paths[$gate]
+        $original = [IO.File]::ReadAllText($path)
+        $doc = Read-SDATestJson $path
+        $doc.contextId = 'wrong-context'
+        Write-SDATestJson $path $doc
+        Assert-BlockedPair (Invoke-SDAReviewPair $gate) "evidence-id/$gate"
+        Write-SDATestText $path $original
+        Assert-BlockedPair (Invoke-SDAReviewPair $gate -Mode development) "mode/$gate"
+
+        foreach ($riskShape in @('missing', 'empty')) {
+            $doc = Read-SDATestJson $path
+            $doc.outcome = 'ReadyWithAcceptedRisks'
+            if ($riskShape -eq 'empty') {
+                $doc | Add-Member -NotePropertyName acceptedRisks -NotePropertyValue @()
+            }
+            Write-SDATestJson $path $doc
+            Assert-BlockedPair (Invoke-SDAReviewPair $gate) "risk-$riskShape/$gate"
+            Assert-BlockedPair (Invoke-SDATestPair) "risk-$riskShape-status/$gate"
+            Write-SDATestText $path $original
+        }
+
+        $doc = Read-SDATestJson $path
+        $doc.outcome = 'ReadyWithAcceptedRisks'
+        $doc | Add-Member acceptedRisks ([ordered]@{
+            id='R001'; owner='Fixture owner'; reviewer='Fixture reviewer'
+            reviewedAt='2099-01-01T00:00:00Z'; reviewDue='2099-12-31'
+            residualRisk='Fixture'; reevaluationTrigger='Fixture change'
+        })
+        Write-SDATestJson $path $doc
+        Assert-BlockedPair (Invoke-SDAReviewPair $gate) "risk-object/$gate"
+        Assert-BlockedPair (Invoke-SDATestPair) "risk-object-status/$gate"
+        Write-SDATestText $path $original
+    }
+    $duplicate = Join-Path $temporaryRoot 'docs/security/secure-development/2099-02-01-contract-test'
+    Copy-Item -LiteralPath $contextPath -Destination $duplicate -Recurse
+    Assert-BlockedPair (Invoke-SDAReviewPair delta) 'duplicate-context'
+    Remove-Item -LiteralPath $duplicate -Recurse -Force
+    $deltaPath = Join-Path $contextPath 'deltas/change.json'
+    $original = [IO.File]::ReadAllText($deltaPath)
+    foreach ($invalid in @('null', 'false', '42', '"risk"')) {
+        $doc = Read-SDATestJson $deltaPath
+        $doc | Add-Member acceptedRisks ($invalid | ConvertFrom-Json)
+        Write-SDATestJson $deltaPath $doc
+        Assert-BlockedPair (Invoke-SDAReviewPair delta) "risk-type/$invalid"
+        Assert-BlockedPair (Invoke-SDATestPair) "risk-type-status/$invalid"
+        Write-SDATestText $deltaPath $original
+    }
+    Assert-SDATest ($failures.Count -eq 0) ("Context/risk regression failures: " + ($failures -join "`n"))
+    'PASS: exact unique context, evidence ID/mode binding and array-only risks'
 }
 
 function Test-SDATestSnapshot {
@@ -613,6 +684,7 @@ try {
         }
     }
 
+    Test-SDAContextAndRiskTypes
     Test-SDAAcceptedRiskIds
     New-SDATestFixture
     Test-SDATestSnapshot
