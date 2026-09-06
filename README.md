@@ -740,7 +740,7 @@ Corrections receive a new version; v0.1.0 is never rewritten.*
 
 ## 22. Versionierung und Support / Versioning and Support
 
-## Kontextbindung und Risikotypen / Context Binding and Risk Types
+### Kontextbindung und Risikotypen / Context Binding and Risk Types
 
 Ab v0.1.3 muss ein Review genau ein Verzeichnis
 `<YYYY-MM-DD>-<context-id>` finden. Die ID wird vollständig und mit
