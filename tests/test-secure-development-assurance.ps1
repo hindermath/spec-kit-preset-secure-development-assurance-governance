@@ -478,6 +478,18 @@ function Test-SDAContextAndRiskTypes {
         Write-SDATestText $path $original
         Assert-BlockedPair (Invoke-SDAReviewPair $gate -Mode development) "mode/$gate"
 
+        foreach ($riskShape in @('missing', 'empty')) {
+            $doc = Read-SDATestJson $path
+            $doc.outcome = 'ReadyWithAcceptedRisks'
+            if ($riskShape -eq 'empty') {
+                $doc | Add-Member -NotePropertyName acceptedRisks -NotePropertyValue @()
+            }
+            Write-SDATestJson $path $doc
+            Assert-BlockedPair (Invoke-SDAReviewPair $gate) "risk-$riskShape/$gate"
+            Assert-BlockedPair (Invoke-SDATestPair) "risk-$riskShape-status/$gate"
+            Write-SDATestText $path $original
+        }
+
         $doc = Read-SDATestJson $path
         $doc.outcome = 'ReadyWithAcceptedRisks'
         $doc | Add-Member acceptedRisks ([ordered]@{
