@@ -1,6 +1,13 @@
 # Secure Development Assurance Governance
 
-Version: `0.1.3`
+Patch **0.1.4** liefert die verbesserte zweisprachige Einstiegs- und
+Kompositionsdokumentation. Verhalten und Berechtigungsgrenzen bleiben erhalten.
+[Release-Nachweis / Release record](docs/release-0.1.4-validation.md).
+
+*Patch 0.1.4 packages the improved bilingual getting-started and composition
+guide. Behavior and authority boundaries remain unchanged.*
+
+Version: `0.1.4`
 
 Status: kompatible Patch-Version zur praktischen Erprobung
 
@@ -204,7 +211,7 @@ preset between them without granting execution or approval authority.*
 ### Veröffentlichtes Tag-ZIP
 
 ~~~bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.3.zip --priority 15
+specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.4.zip --priority 15
 
 specify preset info secure-development-assurance-governance
 specify preset resolve secure-development-evidence-contract
