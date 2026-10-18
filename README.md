@@ -34,28 +34,30 @@ modify the baseline.*
 
 ## Inhaltsübersicht / Contents
 
-1. Zweck und Einsatzbereich
-2. Was das Preset prüft
-3. Was das Preset ausdrücklich nicht leistet
-4. Zusammenspiel mit anderen Presets
-5. Installation
-6. Evidence-Verzeichnis und Lebenszyklus
-7. Vier Assurance-Gates
-8. Statusmodell
-9. Review- und Risikodaten
-10. Baseline- und Hashbindung
-11. Befehle
-12. Betriebsarten
-13. Vollständiges Beispiel
-14. CI-Integration
-15. BSI-C5-Bezug und Abgrenzung
-16. Menschliche Entscheidungsgrenzen
-17. Sicherheit und Datenschutz
-18. Barrierefreiheit
-19. Plattformparität
-20. Fehlersuche
-21. Praktische Erprobung
-22. Versionierung und Support
+1. [Zweck und Einsatzbereich / Purpose and Scope](#assurance-section-1)
+2. [Was das Preset prüft / What the Preset Validates](#assurance-section-2)
+3. [Was das Preset nicht leistet / What It Does Not Do](#assurance-section-3)
+4. [Zusammenspiel mit anderen Presets / Composition](#assurance-section-4)
+5. [Installation / Installation](#assurance-section-5)
+6. [Evidence-Verzeichnis und Lebenszyklus / Evidence Directory and Lifecycle](#assurance-section-6)
+7. [Vier Assurance-Gates / Four Assurance Gates](#assurance-section-7)
+8. [Statusmodell / Status Model](#assurance-section-8)
+9. [Review- und Risikodaten / Review and Risk Metadata](#assurance-section-9)
+10. [Baseline- und Hashbindung / Baseline and Hash Binding](#assurance-section-10)
+11. [Befehle / Commands](#assurance-section-11)
+12. [Betriebsarten / Modes](#assurance-section-12)
+13. [Gate-Beispiel / Gate Example](#assurance-section-13)
+14. [CI-Integration / CI Integration](#assurance-section-14)
+15. [Bezug und Abgrenzung zu BSI C5 / BSI C5 Relationship and Boundary](#assurance-section-15)
+16. [Menschliche Entscheidungsgrenzen / Human Decision Boundaries](#assurance-section-16)
+17. [Sicherheit und Datenschutz / Security and Privacy](#assurance-section-17)
+18. [Barrierefreiheit / Accessibility](#assurance-section-18)
+19. [Plattformparität / Cross-Platform Parity](#assurance-section-19)
+20. [Fehlersuche / Troubleshooting](#assurance-section-20)
+21. [Praktische Erprobung / Field Evaluation](#assurance-section-21)
+22. [Versionierung und Support / Versioning and Support](#assurance-section-22)
+
+<a id="assurance-section-1"></a>
 
 ## 1. Zweck und Einsatzbereich / Purpose and Scope
 
@@ -82,6 +84,8 @@ development and release cycles. Common uses include regulated or
 security-sensitive projects, training and reference repositories, sandbox and
 container projects, formal baseline/delta/closure/image reviews, and teams that
 must keep technical validation separate from human authorization.*
+
+<a id="assurance-section-2"></a>
 
 ## 2. Was das Preset prüft / What the Preset Validates
 
@@ -115,6 +119,8 @@ checklist-item cardinality, compendium alignment, review and risk metadata,
 the security-governance dependency, separate human decisions, all image-impact
 fields, and the no-certification boundary.*
 
+<a id="assurance-section-3"></a>
+
 ## 3. Was das Preset nicht leistet / What It Does Not Do
 
 Das Preset:
@@ -135,7 +141,31 @@ project assessments, replace professional review, evaluate an entire
 assurance framework, grant human approval, synchronize repositories, or start
 another Spec Kit workflow.*
 
+<a id="assurance-section-4"></a>
+
 ## 4. Zusammenspiel mit anderen Presets / Composition
+
+Das [Manifest](preset.yml) registriert zwei eigene Commands und den
+`secure-development-evidence-contract`, keine automatischen
+Specify-/Plan-/Tasks-Wrapper. Installation erzeugt keine Gate-Dateien und
+startet keinen Review. Die Evidence folgt dem Vertrag, ist aber vom Projekt
+mit echten Quellen und Bewertungen zu erstellen. Die Validatoren lesen nur;
+ein Agent darf ausschließlich ausdrücklich autorisierte Review-Evidence ändern.
+
+*The [manifest](preset.yml) registers two standalone commands and the evidence
+contract, not automatic Specify/Plan/Tasks wrappers. Installation creates no
+gate files or review. The project supplies actual sources and assessments
+under the contract. Validators only read; an agent may change only explicitly
+authorized review evidence.*
+
+Kleinere Prioritätszahlen haben höhere Auflösungspriorität; andere Presets
+oder Projekt-Overrides können gleichnamige Vorlagen ersetzen. Eigene
+Kombinationen separat prüfen. Priorität 15 ersetzt weder die Security-
+Mindestversion noch ein Assurance-Gate oder eine menschliche Entscheidung.
+
+*Lower numbers mean higher precedence; presets/overrides may replace same-name
+templates. Check custom combinations separately. Priority 15 replaces neither
+the Security minimum version, assurance gates nor human decisions.*
 
 ### Security Governance
 
@@ -155,9 +185,9 @@ dazugehörige Evidence konsistent gebunden sind.
 
 | Priorität | Preset | Rolle |
 |---:|---|---|
-| 10 | `security-governance` | Sichere Entwicklung und Secure SDLC |
-| 15 | `secure-development-assurance-governance` | Baseline- und Evidence-Assurance |
-| 20 | `architecture-governance` | Sichere Architektur |
+| 10 | [security-governance](https://github.com/hindermath/spec-kit-preset-security-governance) | Sichere Entwicklung und Secure SDLC |
+| 15 | [secure-development-assurance-governance](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance) | Baseline- und Evidence-Assurance |
+| 20 | [architecture-governance](https://github.com/hindermath/spec-kit-preset-architecture-governance) | Sichere Architektur |
 | 30–80 | weitere Governance-Presets | Architektur, A11Y, Intake und autonome Läufe |
 
 Priorität steuert die Kompositionsreihenfolge. Sie erteilt keine
@@ -167,26 +197,24 @@ Ausführungs-, Merge- oder Freigaberechte.
 Architecture Governance supplies architecture depth. Priority 15 places this
 preset between them without granting execution or approval authority.*
 
+<a id="assurance-section-5"></a>
+
 ## 5. Installation / Installation
 
 ### Veröffentlichtes Tag-ZIP
 
 ~~~bash
-specify preset add \
-  --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.3.zip \
-  --priority 15
+specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.3.zip --priority 15
 
 specify preset info secure-development-assurance-governance
-specify preset resolve
+specify preset resolve secure-development-evidence-contract
 specify check
 ~~~
 
 ### Lokaler Entwicklungs-Checkout
 
 ~~~bash
-specify preset add \
-  --dev /path/to/secure-development-assurance-governance \
-  --priority 15
+specify preset add --dev /path/to/secure-development-assurance-governance --priority 15
 ~~~
 
 ### Voraussetzungen prüfen
@@ -194,7 +222,7 @@ specify preset add \
 ~~~bash
 specify preset info security-governance
 specify preset info secure-development-assurance-governance
-specify preset resolve
+specify preset resolve secure-development-evidence-contract
 ~~~
 
 Fehlt `security-governance` oder ist seine Version kleiner als `0.6.1`,
@@ -204,6 +232,8 @@ Installationsversuch durch den Validator.
 *Install the versioned archive at priority 15. The validator fails closed when
 Security Governance is absent or older than 0.6.1; it never installs the
 dependency itself.*
+
+<a id="assurance-section-6"></a>
 
 ## 6. Evidence-Verzeichnis und Lebenszyklus / Evidence Directory and Lifecycle
 
@@ -226,18 +256,20 @@ Kontexte.
 
 Der Lebenszyklus ist:
 
-1. **Baseline:** Quellen, Versionen und Hashes binden.
-2. **Delta:** eine konkrete Änderung gegen die gebundene Baseline bewerten.
-3. **Closure:** technische Ergebnisse, Restrisiken und menschliche
+1. [Zweck und Einsatzbereich / Purpose and Scope](#assurance-section-1)
+2. [Was das Preset prüft / What the Preset Validates](#assurance-section-2)
+3. [Was das Preset nicht leistet / What It Does Not Do](#assurance-section-3)
    Entscheidungsstände zusammenführen.
-4. **Image Impact:** Build-, Container-, SBOM-, Secret-, Mount-, Netzwerk- und
+4. [Zusammenspiel mit anderen Presets / Composition](#assurance-section-4)
    CI-Auswirkungen separat bewerten.
-5. **Status:** alle vier Gates read-only zusammenfassen.
-6. **Wiedervorlage:** bei Ablauf oder Trigger einen neuen Review durchführen.
+5. [Installation / Installation](#assurance-section-5)
+6. [Evidence-Verzeichnis und Lebenszyklus / Evidence Directory and Lifecycle](#assurance-section-6)
 
 *Each review context contains one baseline, one or more deltas, closure,
 image-impact evidence, and a readable matrix. Separate projects and releases
 use separate contexts.*
+
+<a id="assurance-section-7"></a>
 
 ## 7. Vier Assurance-Gates / Four Assurance Gates
 
@@ -282,6 +314,8 @@ Die neun Pflichtfelder sind:
 changed, what can be closed, and what happened to the execution image or
 environment.*
 
+<a id="assurance-section-8"></a>
+
 ## 8. Statusmodell / Status Model
 
 ### Anwendbarkeit
@@ -316,6 +350,8 @@ vollständigen Eintrag unter `acceptedRisks`.
 
 *Applicability and implementation are independent axes. Ready is allowed only
 when every applicable mandatory item is fulfilled.*
+
+<a id="assurance-section-9"></a>
 
 ## 9. Review- und Risikodaten / Review and Risk Metadata
 
@@ -355,6 +391,8 @@ Projekt außerhalb des Presets regeln.
 reevaluation trigger. The validator checks completeness and expiry but does
 not invent organizational authority.*
 
+<a id="assurance-section-10"></a>
+
 ## 10. Baseline- und Hashbindung / Baseline and Hash Binding
 
 `baseline.json` enthält `baselineBinding`:
@@ -382,11 +420,11 @@ oder doppelte Bindungen blockieren.
 
 Für Textdateien wird der Hash nach folgender Normalisierung berechnet:
 
-1. Eingabe muss gültiges UTF-8 sein.
-2. Ein führendes UTF-8-BOM wird entfernt.
-3. CRLF und einzelne CR werden in LF umgewandelt.
-4. Der verbleibende Text wird als UTF-8 ohne BOM gehasht.
-5. SHA-256 wird in 64 kleingeschriebenen Hexadezimalzeichen gespeichert.
+1. [Zweck und Einsatzbereich / Purpose and Scope](#assurance-section-1)
+2. [Was das Preset prüft / What the Preset Validates](#assurance-section-2)
+3. [Was das Preset nicht leistet / What It Does Not Do](#assurance-section-3)
+4. [Zusammenspiel mit anderen Presets / Composition](#assurance-section-4)
+5. [Installation / Installation](#assurance-section-5)
 
 Dadurch führen reine Zeilenenden-Unterschiede zwischen Windows, macOS und Linux
 nicht zu falscher Drift. Inhaltliche Änderungen führen weiterhin zu Drift.
@@ -394,6 +432,8 @@ nicht zu falscher Drift. Inhaltliche Änderungen führen weiterhin zu Drift.
 *The baseline binding records the manifest version and normalized hash plus one
 binding for every controlled text document. UTF-8 BOM and line endings are
 normalized before hashing.*
+
+<a id="assurance-section-11"></a>
 
 ## 11. Befehle / Commands
 
@@ -415,17 +455,20 @@ Ohne Parameter wird das lexikografisch neueste Verzeichnis unter
 
 Direkter Skriptaufruf unter macOS/Linux:
 
+Vom Root des integrierten Zielprojekts; den Beispielkontext ersetzen.
+Die folgenden Aufrufe prüfen nur vorhandene Evidence und erstellen sie nicht.
+
+*Run from the integrated target project's root and replace the example context.
+These calls validate existing evidence; they do not create it.*
+
 ~~~bash
-bash scripts/validate-secure-development-assurance.sh \
-  status docs/security/secure-development/2026-09-03-example
+bash .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.sh status docs/security/secure-development/2026-09-03-example
 ~~~
 
 Direkter Skriptaufruf unter Windows:
 
 ~~~powershell
-pwsh -NoProfile -File scripts/validate-secure-development-assurance.ps1 \
-  -Action Status \
-  -EvidenceDirectory docs/security/secure-development/2026-09-03-example
+pwsh -NoProfile -File .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.ps1 -Action Status -EvidenceDirectory docs/security/secure-development/2026-09-03-example
 ~~~
 
 ### Begrenzter Review
@@ -442,6 +485,8 @@ Rahmen der ausdrücklich erteilten Evidence-Autorität vornehmen.
 *Status validates and summarizes the complete context without writing.
 Review validates one named gate and remains bounded to explicitly authorized
 review evidence.*
+
+<a id="assurance-section-12"></a>
 
 ## 12. Betriebsarten / Modes
 
@@ -464,7 +509,10 @@ Gate-Evidence `runbookApplicability: "N/A"` und eine belastbare
 *Training and mixed modes require a runbook. Development requires a runbook or
 an explicit, reasoned non-applicability decision.*
 
-## 13. Vollständiges Gate-Beispiel / Complete Gate Example
+<a id="assurance-section-13"></a>
+<a id="13-vollständiges-gate-beispiel--complete-gate-example"></a>
+
+## 13. Gate-Beispiel / Gate Example
 
 ~~~json
 {
@@ -503,8 +551,17 @@ an explicit, reasoned non-applicability decision.*
 }
 ~~~
 
-Dieses Beispiel ist strukturell vollständig. Seine fachlichen Aussagen müssen
-für jedes reale Projekt mit echter Evidence belegt werden.
+Dieses Beispiel veranschaulicht eine Delta-Datei, keinen vollständigen
+Assurance-Kontext. Runbook beziehungsweise begründete Nichtanwendbarkeit,
+reale Evidence-Pfade und die übrigen drei Gates müssen nach dem Vertrag
+ergänzt werden. Seine Aussagen sind keine bereits geprüften Projektergebnisse.
+
+*This illustrates a delta file, not a complete assurance context. Supply its
+runbook or justified non-applicability, real evidence paths and the other
+three gates according to the contract. Its statements are not verified
+project results.*
+
+<a id="assurance-section-14"></a>
 
 ## 14. CI-Integration / CI Integration
 
@@ -524,9 +581,7 @@ Windows:
 - name: Validate secure-development assurance
   shell: pwsh
   run: |
-    pwsh -NoProfile -File .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.ps1 \
-      -Action Status \
-      -EvidenceDirectory docs/security/secure-development/2026-09-03-example
+    pwsh -NoProfile -File .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.ps1 -Action Status -EvidenceDirectory docs/security/secure-development/2026-09-03-example
 ~~~
 
 Ein grüner CI-Job bedeutet nur, dass der technische Evidence-Vertrag erfüllt
@@ -535,6 +590,8 @@ ist. Er darf nicht automatisch `pilotAuthorization`,
 
 *CI may enforce the technical evidence contract. A green job never grants a
 human authorization.*
+
+<a id="assurance-section-15"></a>
 
 ## 15. Bezug und Abgrenzung zu BSI C5 / BSI C5 Relationship and Boundary
 
@@ -596,14 +653,16 @@ development controls. The preset validates that this checkpoint and its
 controlled documents remain bound and consistent. It does not implement the
 full BSI C5 catalogue, perform attestation review, or establish C5 readiness.*
 
+<a id="assurance-section-16"></a>
+
 ## 16. Menschliche Entscheidungsgrenzen / Human Decision Boundaries
 
 Die vier Closure-Entscheidungen sind nicht austauschbar:
 
-1. `technicalValidation` bestätigt nur die technische Prüfung.
-2. `pilotAuthorization` erlaubt einen begrenzten Pilotbetrieb.
-3. `projectAcceptance` bestätigt die Abnahme durch die Projektverantwortung.
-4. `generalRelease` erlaubt die ausdrücklich benannte allgemeine Freigabe.
+1. [Zweck und Einsatzbereich / Purpose and Scope](#assurance-section-1)
+2. [Was das Preset prüft / What the Preset Validates](#assurance-section-2)
+3. [Was das Preset nicht leistet / What It Does Not Do](#assurance-section-3)
+4. [Zusammenspiel mit anderen Presets / Composition](#assurance-section-4)
 
 Technische Validierung darf die anderen drei Entscheidungen niemals
 automatisch erfüllen. Sind sie offen, berichtet der Status sie als offen.
@@ -613,6 +672,8 @@ Tests erfolgreich waren.
 *Technical validation, pilot authorization, project acceptance, and general
 release are four independent decisions. The first never implies the other
 three.*
+
+<a id="assurance-section-17"></a>
 
 ## 17. Sicherheit und Datenschutz / Security and Privacy
 
@@ -633,6 +694,8 @@ three.*
 repository-relative, external references are not executed or fetched, and
 unknown states fail closed.*
 
+<a id="assurance-section-18"></a>
+
 ## 18. Barrierefreiheit / Accessibility
 
 Alle wesentlichen Ergebnisse werden als Text ausgegeben. Farbe, Icons oder
@@ -645,6 +708,8 @@ ersten Gebrauch.
 *All essential information is available as text. Color and graphics are never
 the only signal. Stable labels, readable examples, and CEFR-B2 language
 support keyboard, screen-reader, Braille, and text-browser use.*
+
+<a id="assurance-section-19"></a>
 
 ## 19. Plattformparität / Cross-Platform Parity
 
@@ -664,6 +729,8 @@ inhaltlicher Drift zu unterscheiden.
 
 *Bash and PowerShell implement the same contract and exit-code semantics.
 Fixtures cover LF, CRLF, and UTF-8 BOM.*
+
+<a id="assurance-section-20"></a>
 
 ## 20. Fehlersuche / Troubleshooting
 
@@ -713,6 +780,8 @@ belegbare Aussage zum geprüften Evidence-Scope.
 `training` und `mixed` benötigen immer ein Gate-spezifisches Runbook.
 `development` benötigt ein Runbook oder ein begründetes `N/A`.
 
+<a id="assurance-section-21"></a>
+
 ## 21. Praktische Erprobung / Field Evaluation
 
 Vor einer späteren Community-Einreichung sollte das veröffentlichte Tag-ZIP in
@@ -737,6 +806,8 @@ Eine erforderliche Korrektur wird als neue Version veröffentlicht. Das Tag
 *Before any later Community Catalog submission, install the immutable release
 archive in a controlled project and execute the supplied field-test runbook.
 Corrections receive a new version; v0.1.0 is never rewritten.*
+
+<a id="assurance-section-22"></a>
 
 ## 22. Versionierung und Support / Versioning and Support
 
