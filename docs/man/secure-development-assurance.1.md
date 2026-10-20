@@ -26,6 +26,21 @@ Security-Governance-Voraussetzung.
 Status ist strikt read-only. Review validiert genau ein Gate. Beide Varianten
 erteilen keine menschliche Freigabe und keine Zertifizierung.
 
+## ACTIVE METADATA
+
+Versionen, Checklisten-Dokument-IDs und die Sammelband-Baseline werden exakt
+im ersten zusammenhängenden Metadatenblock vor Inhaltsabschnitten geprüft.
+Die Richtlinie benötigt je genau einen Abschnitt `## Dokumenten-Metadaten`
+und `## Document Metadata` mit der passenden ersten Versionstabelle.
+Fließtexttreffer, Versionspräfixe und doppelte Felder/Abschnitte blockieren
+mit Exit 2 und einer Diagnose samt Pfad/Feld. Historientabellen bleiben erlaubt.
+
+Versions, checklist IDs and the compendium baseline must be exact, unique
+active metadata. Both named guideline language sections and their first
+version table are required. Matching body text or prefixes cannot mask drift;
+duplicate fields/sections fail closed. Legacy sources require an explicit
+migration and fresh evidence, never retrospective edits to historical evidence.
+
 ## GATES
 
 - `baseline` — Baseline, Manifest und kontrollierte Dokumente;

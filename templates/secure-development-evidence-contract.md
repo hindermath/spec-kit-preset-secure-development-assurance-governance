@@ -83,6 +83,29 @@ mitgeltende Dokumente und Lernpfade aus dem Manifest. Text wird als striktes
 UTF-8 gelesen, ein führendes BOM entfernt und CRLF beziehungsweise CR zu LF
 normalisiert, bevor SHA-256 berechnet wird.
 
+### Aktive Metadaten / Active Metadata
+
+Dokumentversionen müssen exakt und eindeutig im ersten zusammenhängenden
+Metadatenblock vor den Inhaltsabschnitten stehen. Das gilt auch für die
+Checklisten-Dokument-ID und die Baseline-Version im Sammelband. Ein passender
+Text im Fließtext, ein Versionspräfix oder ein doppeltes Feld genügt nicht.
+Die Richtlinie benötigt genau einen Abschnitt `## Dokumenten-Metadaten` mit
+der ersten Tabelle `| Versionsnummer | <Version> |` und genau einen Abschnitt
+`## Document Metadata` mit `| Version | <Version> |`. Versionshistorien mit
+anderen Tabellenfeldern bleiben zulässig. Bestehende, nur einsprachige oder
+abweichend strukturierte Dokumente sind vor der Nutzung fachlich zu migrieren;
+historische Evidence nicht nachträglich passend machen.
+
+Declare each document version exactly once in the first contiguous metadata
+block before content sections. This also applies to checklist document IDs
+and the compendium baseline. Body-only matches, version prefixes, duplicate
+fields or duplicate guideline sections fail closed with exit 2 and a path/field
+diagnostic. The guideline requires both named language sections and their
+first version table. Historical tables with different fields remain valid.
+Migrate legacy/monolingual sources explicitly and create new evidence rather
+than rewriting historical hash-bound evidence. Hash normalization and human
+decision authority are unchanged.
+
 ## Closure / Closure
 
 `closure.json` enthält:
