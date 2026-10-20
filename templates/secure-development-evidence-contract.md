@@ -94,7 +94,9 @@ der ersten Tabelle `| Versionsnummer | <Version> |` und genau einen Abschnitt
 `## Document Metadata` mit `| Version | <Version> |`. Versionshistorien mit
 anderen Tabellenfeldern bleiben zulässig. Bestehende, nur einsprachige oder
 abweichend strukturierte Dokumente sind vor der Nutzung fachlich zu migrieren;
-historische Evidence nicht nachträglich passend machen.
+historische Evidence nicht nachträglich passend machen. Der erste normale
+Fließtext nach der Metadatenüberschrift beendet den Metadatenbereich; eine
+spätere Beispieltabelle ist kein Ersatz für die aktive Version.
 
 Declare each document version exactly once in the first contiguous metadata
 block before content sections. This also applies to checklist document IDs
@@ -104,7 +106,8 @@ diagnostic. The guideline requires both named language sections and their
 first version table. Historical tables with different fields remain valid.
 Migrate legacy/monolingual sources explicitly and create new evidence rather
 than rewriting historical hash-bound evidence. Hash normalization and human
-decision authority are unchanged.
+decision authority are unchanged. Ordinary prose ends the metadata area, even
+before its first table; a later example cannot substitute for an active field.
 
 ## Closure / Closure
 

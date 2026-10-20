@@ -217,7 +217,7 @@ validate_active_metadata() {
       heading != "" {
         if ($0 ~ /^## /) { active = ($0 == heading); if (active) sections++; table = 0; ended = 0 }
         if (active && $0 ~ /^\|/ && !ended) table = 1
-        if (active && table && $0 !~ /^\|/) ended = 1
+        if (active && $0 != heading && $0 !~ /^\|/ && (table || $0 !~ /^[[:space:]]*$/)) ended = 1
         if (index($0, prefix) == 1 && split($0, cells, "[|]") == 4) {
           count++; if (active && table && !ended && $0 == expected) matched++
         }

@@ -339,7 +339,8 @@ function Test-SDAActiveMetadataField {
                 $table = $false; $ended = $false
             }
             if ($active -and $line.StartsWith('|', [StringComparison]::Ordinal) -and -not $ended) { $table = $true }
-            if ($active -and $table -and -not $line.StartsWith('|', [StringComparison]::Ordinal)) { $ended = $true }
+            if ($active -and $line -cne $Heading -and -not $line.StartsWith('|', [StringComparison]::Ordinal) -and
+                ($table -or -not [string]::IsNullOrWhiteSpace($line))) { $ended = $true }
             if ($line.StartsWith($Prefix, [StringComparison]::Ordinal) -and ($line -split '\|').Count -eq 4) {
                 $count++
                 if ($active -and $table -and -not $ended -and $line -ceq $Expected) { $matched++ }
