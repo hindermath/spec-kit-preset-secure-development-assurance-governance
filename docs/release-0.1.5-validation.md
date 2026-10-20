@@ -43,6 +43,11 @@ check path/field diagnostics and read-only snapshots. Existing history,
 narrative, BOM/CRLF, gate and generated-installation contracts remain covered.
 Run native macOS Bash first, then PowerShell parity and configured native CI.
 PR evidence records actual outcomes; this procedure alone asserts no pass.
+The first full Windows CI run of the expanded suite reached the old fifteen-
+minute job limit and was cancelled (run 39443623598). It is not a passing gate.
+The package workflow now allows thirty minutes; assertions and test scope
+are unchanged. Fresh three-platform CI on the updated head is required.
+
 Delivery authority permits package publication and a Level-0 rollout only.
 Other consumers and catalog submission remain separate. Home Runtime need
 must follow the Level-0 distribution manifest, not the package version alone.
