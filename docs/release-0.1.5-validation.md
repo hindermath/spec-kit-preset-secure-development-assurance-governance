@@ -21,7 +21,7 @@ Dokument kann jetzt berechtigt blockieren. Historische Nachweise bleiben
 unverändert; bei erforderlicher Migration neue Evidence anlegen.
 
 Regressionen binden alle manipulierten Dokumente neu an gültige Hashes.
-46 Negativfälle je Shell decken acht Felder und sechs Tabellen-/Abschnitts-
+47 Negativfälle je Shell decken acht Felder und sechs Tabellen-/Abschnitts-
 grenzen ab. Beide Shells müssen Exit 2 mit richtigem Pfad und Feld liefern;
 Byte-Snapshots belegen unveränderte Evidence. Historien, normale Textnennungen,
 BOM/CRLF und die bisherigen Gate-/Installationsprüfungen bleiben positiv.
@@ -38,7 +38,7 @@ explicitly and create fresh evidence while preserving historical records.
 This does not alter hash normalization, evidence schema or human authority.
 
 Each negative fixture refreshes valid hash bindings before validation, so a
-hash failure cannot hide a metadata false positive. Forty-six cases per shell
+hash failure cannot hide a metadata false positive. Forty-seven cases per shell
 check path/field diagnostics and read-only snapshots. Existing history,
 narrative, BOM/CRLF, gate and generated-installation contracts remain covered.
 Run native macOS Bash first, then PowerShell parity and configured native CI.
@@ -46,3 +46,5 @@ PR evidence records actual outcomes; this procedure alone asserts no pass.
 Delivery authority permits package publication and a Level-0 rollout only.
 Other consumers and catalog submission remain separate. Home Runtime need
 must follow the Level-0 distribution manifest, not the package version alone.
+
+DE: Eingebettete Checklisten-Metadaten im Sammelband behalten ihre eigene Baseline; nur der Sammelband-Header wird gegen die Manifest-Baseline geprüft. Doppelte Baseline-Felder innerhalb eines eingebetteten Blocks bleiben unzulässig. Die Positivfixture bildet zwölf eingebettete Blöcke mit bewusst abweichender eigener Baseline ab. / EN: Embedded checklist blocks retain their own baseline; the compendium header alone binds the manifest baseline. Duplicate baselines inside an embedded block remain invalid. The positive fixture includes twelve embedded blocks with intentionally different baselines.

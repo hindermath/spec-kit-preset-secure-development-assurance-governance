@@ -321,7 +321,8 @@ function Test-SDAActiveMetadataField {
         [Parameter(Mandatory)][string]$RelativePath,
         [Parameter(Mandatory)][string]$Prefix,
         [Parameter(Mandatory)][string]$Expected,
-        [string]$Heading = ''
+        [string]$Heading = '',
+        [switch]$AllowEmbeddedBaseline
     )
     # Only the first metadata block/table may supply the value; body matches cannot mask drift.
     # Nur der erste Metadatenblock bzw. die erste Tabelle liefert den aktiven Wert.
@@ -329,6 +330,7 @@ function Test-SDAActiveMetadataField {
     $count = 0; $matched = 0; $sections = 0
     $started = $false; $active = $false; $table = $false; $ended = $false
     $introClosed = $false; $titleSeen = $false
+    $embedded = $false; $embeddedCount = 0; $invalid = $false
     foreach ($line in ($text -split "`n")) {
         if ($Heading) {
             if ($line.StartsWith('## ', [StringComparison]::Ordinal)) {
@@ -349,13 +351,24 @@ function Test-SDAActiveMetadataField {
             }
             if (-not $started -and -not $introClosed -and $line -cmatch '^\*\*[^*]+:\*\*') { $started = $true; $active = $true }
             if ($started -and $line -cnotmatch '^\*\*[^*]+:\*\*') { $active = $false }
+            # Embedded checklists own their baseline; duplicate fields within that block still fail.
+            # Eingebettete Checklisten haben eigene Baselines; doppelte Felder im Block bleiben Fehler.
+            if ($AllowEmbeddedBaseline -and -not $active -and $line -cmatch '^\*\*Dokument-ID / Document ID:\*\* CL-(0[1-9]|1[0-2])$') {
+                $embedded = $true; $embeddedCount = 0
+            }
+            if ($line -cnotmatch '^\*\*[^*]+:\*\*') { $embedded = $false }
+            if ($embedded -and $line.StartsWith($Prefix, [StringComparison]::Ordinal)) {
+                $embeddedCount++
+                if ($embeddedCount -gt 1) { $invalid = $true }
+                continue
+            }
             if ($line.StartsWith($Prefix, [StringComparison]::Ordinal)) {
                 $count++
                 if ($active -and $line -ceq $Expected) { $matched++ }
             }
         }
     }
-    if ($count -ne 1 -or $matched -ne 1 -or ($Heading -and $sections -ne 1)) {
+    if ($count -ne 1 -or $matched -ne 1 -or $invalid -or ($Heading -and $sections -ne 1)) {
         Stop-SDAValidation "Aktive Metadaten fehlen, weichen ab oder sind doppelt: ${RelativePath} (${Prefix})"
     }
 }
@@ -481,7 +494,7 @@ function Test-SDABaselineContract {
     if ((($itemIds | Sort-Object) -join '|') -ne (($compendiumIds | Sort-Object) -join '|')) {
         Stop-SDAValidation 'Sammelbanddrift gegenüber den zwölf Einzelchecklisten.'
     }
-    Test-SDAActiveMetadataField $compendiumPath $manifest.compendium.path '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** ${baselineVersion}"
+    Test-SDAActiveMetadataField $compendiumPath $manifest.compendium.path '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** ${baselineVersion}" -AllowEmbeddedBaseline
     foreach ($relative in @($manifest.managedBinaryFiles) + @($manifest.managedReferenceFiles)) {
         Test-SDARelativePath $relative 'Verwalteter Referenzpfad'
         if (-not (Test-Path -LiteralPath (Join-Path $docRoot $relative) -PathType Leaf)) {

@@ -208,11 +208,11 @@ validate_gate_file() {
 }
 
 validate_active_metadata() {
-  local full_path="$1" relative="$2" prefix="$3" expected="$4" heading="${5:-}"
+  local full_path="$1" relative="$2" prefix="$3" expected="$4" heading="${5:-}" embedded_baseline="${6:-}"
   # Only active metadata counts as a match; duplicate fields anywhere fail closed.
   # Nur aktive Metadaten gelten als Treffer; doppelte Felder bleiben unzulaessig.
   "${SDA_JQ[@]}" -jRs 'sub("^\uFEFF"; "") | gsub("\r\n?"; "\n")' "$full_path" |
-    awk -v prefix="$prefix" -v expected="$expected" -v heading="$heading" '
+    awk -v prefix="$prefix" -v expected="$expected" -v heading="$heading" -v embedded_baseline="$embedded_baseline" '
       { sub(/\r$/, "") }
       heading != "" {
         if ($0 ~ /^## /) { active = ($0 == heading); if (active) sections++; table = 0; ended = 0 }
@@ -226,8 +226,12 @@ validate_active_metadata() {
       !started && /^#+ / { headings++; if (headings > 1) closed = 1 }
       !started && !closed && /^\*\*[^*]+:\*\*/ { started = 1; active = 1 }
       started && $0 !~ /^\*\*[^*]+:\*\*/ { active = 0 }
+      # Embedded checklist blocks own their baseline, separately from the compendium header.
+      embedded_baseline && !active && /^\*\*Dokument-ID \/ Document ID:\*\* CL-(0[1-9]|1[0-2])$/ { embedded = 1; embedded_count = 0 }
+      $0 !~ /^\*\*[^*]+:\*\*/ { embedded = 0 }
+      embedded && index($0, prefix) == 1 { embedded_count++; if (embedded_count > 1) invalid = 1; next }
       index($0, prefix) == 1 { count++; if (active && $0 == expected) matched++ }
-      END { exit !(count == 1 && matched == 1 && (heading == "" || sections == 1)) }
+      END { exit !(count == 1 && matched == 1 && !invalid && (heading == "" || sections == 1)) }
     ' || die "Aktive Metadaten fehlen, weichen ab oder sind doppelt: $relative ($prefix)"
 }
 
@@ -325,7 +329,7 @@ validate_baseline_contract() {
   compendium_path="$("${SDA_JQ[@]}" -r '.compendium.path' "$manifest_file")"
   grep -Eo '^#### CL-[0-9]{2}-[0-9]{2}:' "$(dirname "$manifest_file")/$compendium_path" | sed 's/^#### //; s/:$//' > "$compendium_ids_file"
   [[ "$(LC_ALL=C sort "$ids_file")" == "$(LC_ALL=C sort "$compendium_ids_file")" ]] || die 'Sammelbanddrift gegenüber den zwölf Einzelchecklisten.'
-  validate_active_metadata "$(dirname "$manifest_file")/$compendium_path" "$compendium_path" '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** $baseline_version"
+  validate_active_metadata "$(dirname "$manifest_file")/$compendium_path" "$compendium_path" '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** $baseline_version" '' 'embedded-baseline'
   rm -f "$ids_file" "$compendium_ids_file"
 
   while IFS= read -r relative; do

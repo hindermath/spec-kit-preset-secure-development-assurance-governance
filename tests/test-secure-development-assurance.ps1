@@ -198,7 +198,15 @@ preset:
         ) -join [Environment]::NewLine
         Write-SDATestText (Join-Path $docRoot $relative) $text
         $checklists.Add([ordered]@{ id = $checklistId; path = $relative; version = '1.0.0' })
-        $compendiumItems.Add("#### $($itemId): Fixture item")
+        $compendiumItems.Add((@(
+            "## $checklistId"
+            ''
+            "**Dokument-ID / Document ID:** $checklistId"
+            '**Version / Version:** 1.0.0'
+            '**Baseline-Version / Baseline version:** 0.9.0'
+            ''
+            "#### $($itemId): Fixture item"
+        ) -join [Environment]::NewLine))
     }
 
     $compendium = @(
@@ -430,6 +438,19 @@ function Test-SDAActiveMetadata {
             $count++
         }
     }
+    New-SDATestFixture
+    $path = Join-Path $temporaryRoot 'docs/secure-development/Sammelband.md'
+    $text = Get-Content $path -Raw
+    $text = $text.Replace('**Baseline-Version / Baseline version:** 0.9.0', ('**Baseline-Version / Baseline version:** 0.9.0' + $nl + '**Baseline-Version / Baseline version:** 0.9.0'))
+    Write-SDATestText $path $text
+    Update-SDATestBindings
+    $before = Get-SDATestSnapshot $temporaryRoot
+    $pair = Invoke-SDATestPair
+    foreach ($shell in @('Bash', 'PowerShell')) {
+        Assert-SDATest ($pair.$shell.ExitCode -eq 2 -and $pair.$shell.StdErr.Contains('Sammelband.md') -and $pair.$shell.StdErr.Contains('Baseline-Version')) "$shell accepted duplicate embedded baseline."
+    }
+    Assert-SDATest ($before -ceq (Get-SDATestSnapshot $temporaryRoot)) 'Embedded metadata status mutated evidence.'
+    $count++
     # Historical tables and narrative mentions remain valid; only metadata fields are unique.
     # Historientabellen und Textnennungen bleiben erlaubt; eindeutig sind Metadatenfelder.
     New-SDATestFixture
