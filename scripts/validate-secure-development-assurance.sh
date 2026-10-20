@@ -223,7 +223,7 @@ validate_active_metadata() {
         }
         next
       }
-      !started && /^#+ / { headings++; if ($0 !~ /^# / || headings > 1) closed = 1 }
+      !started && /^#+ / { headings++; if (headings > 1) closed = 1 }
       !started && !closed && /^\*\*[^*]+:\*\*/ { started = 1; active = 1 }
       started && $0 !~ /^\*\*[^*]+:\*\*/ { active = 0 }
       index($0, prefix) == 1 { count++; if (active && $0 == expected) matched++ }

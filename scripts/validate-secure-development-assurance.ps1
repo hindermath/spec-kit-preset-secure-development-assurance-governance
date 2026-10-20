@@ -344,7 +344,7 @@ function Test-SDAActiveMetadataField {
             }
         } else {
             if (-not $started -and $line -cmatch '^#+ ') {
-                if ($titleSeen -or -not $line.StartsWith('# ', [StringComparison]::Ordinal)) { $introClosed = $true }
+                if ($titleSeen) { $introClosed = $true }
                 $titleSeen = $true
             }
             if (-not $started -and -not $introClosed -and $line -cmatch '^\*\*[^*]+:\*\*') { $started = $true; $active = $true }

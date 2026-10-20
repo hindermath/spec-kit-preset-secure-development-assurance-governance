@@ -188,7 +188,7 @@ preset:
         $itemId = if ($number -eq 2) { 'CL-02-13' } else { 'CL-{0:D2}-01' -f $number }
         $relative = 'checklisten/CL_{0:D2}.md' -f $number
         $text = @(
-            "# $checklistId"
+            "## $checklistId"
             ''
             "**Dokument-ID / Document ID:** $checklistId"
             '**Version / Version:** 1.0.0'
