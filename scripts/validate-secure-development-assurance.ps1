@@ -349,6 +349,9 @@ function Test-SDAActiveMetadataField {
                 if ($titleSeen) { $introClosed = $true }
                 $titleSeen = $true
             }
+            if (-not $started -and $titleSeen -and $line -cnotmatch '^#+ ' -and
+                -not [string]::IsNullOrWhiteSpace($line) -and -not $line.StartsWith('>', [StringComparison]::Ordinal) -and
+                $line -cnotmatch '^\*\*[^*]+:\*\*') { $introClosed = $true }
             if (-not $started -and -not $introClosed -and $line -cmatch '^\*\*[^*]+:\*\*') { $started = $true; $active = $true }
             if ($started -and $line -cnotmatch '^\*\*[^*]+:\*\*') { $active = $false }
             # Embedded checklists own their baseline; duplicate fields within that block still fail.

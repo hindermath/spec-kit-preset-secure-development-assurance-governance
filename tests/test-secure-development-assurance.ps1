@@ -397,7 +397,8 @@ function Test-SDAActiveMetadata {
             }
             $text = $text.Replace($marker, $replacement)
             if ($mutation -in @('stale-body', 'body-only', 'duplicate')) {
-                $text += $nl + '## Historical example' + $nl + $marker + $nl
+                $body = if ($mutation -eq 'body-only') { 'Historical example in ordinary body text.' } else { '## Historical example' }
+                $text += $nl + $body + $nl + $marker + $nl
             }
             if ($mutation -eq 'stale-inline') { $text += $nl + 'Example: ' + $marker }
             Write-SDATestText $path $text

@@ -224,6 +224,7 @@ validate_active_metadata() {
         next
       }
       !started && /^#+ / { headings++; if (headings > 1) closed = 1 }
+      !started && headings && $0 !~ /^#+ / && $0 !~ /^[[:space:]]*$/ && $0 !~ /^>/ && $0 !~ /^\*\*[^*]+:\*\*/ { closed = 1 }
       !started && !closed && /^\*\*[^*]+:\*\*/ { started = 1; active = 1 }
       started && $0 !~ /^\*\*[^*]+:\*\*/ { active = 0 }
       # Embedded checklist blocks own their baseline, separately from the compendium header.
