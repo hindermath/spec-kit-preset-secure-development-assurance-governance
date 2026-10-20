@@ -172,7 +172,13 @@ preset:
     Write-SDATestText (Join-Path $docRoot 'Richtlinie.md') @'
 # Richtlinie
 
+## Dokumenten-Metadaten
+
 | Versionsnummer | 1.0.0 |
+
+## Document Metadata
+
+| Version | 1.0.0 |
 '@
 
     $checklists = [Collections.Generic.List[object]]::new()
@@ -192,7 +198,15 @@ preset:
         ) -join [Environment]::NewLine
         Write-SDATestText (Join-Path $docRoot $relative) $text
         $checklists.Add([ordered]@{ id = $checklistId; path = $relative; version = '1.0.0' })
-        $compendiumItems.Add("#### $($itemId): Fixture item")
+        $compendiumItems.Add((@(
+            "## $checklistId"
+            ''
+            "**Dokument-ID / Document ID:** $checklistId"
+            '**Version / Version:** 1.0.0'
+            '**Baseline-Version / Baseline version:** 0.9.0'
+            ''
+            "#### $($itemId): Fixture item"
+        ) -join [Environment]::NewLine))
     }
 
     $compendium = @(
@@ -352,6 +366,103 @@ function Invoke-SDANegativeCase {
     Assert-SDATest ($pair.PowerShell.ExitCode -eq 2) "PowerShell did not block: $ExpectedText"
     Assert-SDATest ($pair.Bash.StdErr -match [regex]::Escape($ExpectedText)) "Bash message missing: $ExpectedText"
     Assert-SDATest (-not [string]::IsNullOrWhiteSpace($pair.PowerShell.StdErr)) "PowerShell cause missing: $ExpectedText"
+}
+
+function Test-SDAActiveMetadata {
+    $targets = @(
+        @('checklisten/CL_03.md', '**Version / Version:** 1.0.0', '**Version / Version:**'),
+        @('related.md', '**Version / Version:** 1.0.0', '**Version / Version:**'),
+        @('learning.md', '**Version / Version:** 1.0.0', '**Version / Version:**'),
+        @('Sammelband.md', '**Dokumentversion / Document version:** 1.0.0', '**Dokumentversion / Document version:**'),
+        @('Sammelband.md', '**Baseline-Version / Baseline version:** 1.0.0', '**Baseline-Version / Baseline version:**'),
+        @('checklisten/CL_03.md', '**Dokument-ID / Document ID:** CL-03', '**Dokument-ID / Document ID:**'),
+        @('Richtlinie.md', '| Versionsnummer | 1.0.0 |', 'Versionsnummer'),
+        @('Richtlinie.md', '| Version | 1.0.0 |', 'Version')
+    )
+    $count = 0
+    $nl = [Environment]::NewLine
+    foreach ($target in $targets) {
+        foreach ($mutation in @('stale-body', 'body-only', 'prefix', 'duplicate', 'stale-inline')) {
+            New-SDATestFixture
+            $path = Join-Path $temporaryRoot ('docs/secure-development/' + $target[0])
+            $text = Get-Content $path -Raw
+            $marker = $target[1]
+            $wrong = $marker.Replace('1.0.0', '9.0.0').Replace('CL-03', 'CL-99')
+            $replacement = switch ($mutation) {
+                'stale-body' { $wrong }
+                'body-only' { '' }
+                'prefix' { if ($marker.StartsWith('|')) { $marker.Replace('1.0.0', '1.0.00') } else { $marker + '0' } }
+                'duplicate' { $marker }
+                'stale-inline' { $wrong }
+            }
+            $text = $text.Replace($marker, $replacement)
+            if ($mutation -in @('stale-body', 'body-only', 'duplicate')) {
+                $body = if ($mutation -eq 'body-only') { 'Historical example in ordinary body text.' } else { '## Historical example' }
+                $text += $nl + $body + $nl + $marker + $nl
+            }
+            if ($mutation -eq 'stale-inline') { $text += $nl + 'Example: ' + $marker }
+            Write-SDATestText $path $text
+            # Rebind mutated bytes: hash drift must not hide metadata false positives.
+            # Manipulierte Bytes neu binden: Hashdrift darf Metadatenfehler nicht verdecken.
+            Update-SDATestBindings
+            $before = Get-SDATestSnapshot $temporaryRoot
+            $pair = Invoke-SDATestPair
+            foreach ($shell in @('Bash', 'PowerShell')) {
+                $result = $pair.$shell
+                Assert-SDATest ($result.ExitCode -eq 2) "$shell accepted metadata $($mutation): $($target[0]) / $($target[2])"
+                Assert-SDATest ($result.StdErr.Contains($target[0]) -and $result.StdErr.Contains($target[2])) "$shell metadata failure omitted path/field: $($result.StdErr)"
+            }
+            Assert-SDATest ($before -ceq (Get-SDATestSnapshot $temporaryRoot)) 'Metadata status mutated evidence.'
+            $count++
+        }
+    }
+    foreach ($heading in @('## Dokumenten-Metadaten', '## Document Metadata')) {
+        foreach ($mutation in @('missing-section', 'duplicate-section', 'second-table')) {
+            New-SDATestFixture
+            $path = Join-Path $temporaryRoot 'docs/secure-development/Richtlinie.md'
+            $text = Get-Content $path -Raw
+            $field = if ($heading -ceq '## Document Metadata') { 'Version' } else { 'Versionsnummer' }
+            $text = switch ($mutation) {
+                'missing-section' { $text.Replace($heading, '## Other section') }
+                'duplicate-section' { $text + $nl + $heading + $nl }
+                'second-table' { $text.Replace("| $field | 1.0.0 |", ('| Other | Value |' + $nl + $nl + "| $field | 1.0.0 |")) }
+            }
+            Write-SDATestText $path $text
+            Update-SDATestBindings
+            $before = Get-SDATestSnapshot $temporaryRoot
+            $pair = Invoke-SDATestPair
+            foreach ($shell in @('Bash', 'PowerShell')) {
+                Assert-SDATest ($pair.$shell.ExitCode -eq 2) "$shell accepted guideline boundary $mutation / $field"
+                Assert-SDATest ($pair.$shell.StdErr.Contains('Richtlinie.md') -and $pair.$shell.StdErr.Contains($field)) "$shell guideline error omitted path/field."
+            }
+            Assert-SDATest ($before -ceq (Get-SDATestSnapshot $temporaryRoot)) 'Guideline status mutated evidence.'
+            $count++
+        }
+    }
+    New-SDATestFixture
+    $path = Join-Path $temporaryRoot 'docs/secure-development/Sammelband.md'
+    $text = Get-Content $path -Raw
+    $text = $text.Replace('**Baseline-Version / Baseline version:** 0.9.0', ('**Baseline-Version / Baseline version:** 0.9.0' + $nl + '**Baseline-Version / Baseline version:** 0.9.0'))
+    Write-SDATestText $path $text
+    Update-SDATestBindings
+    $before = Get-SDATestSnapshot $temporaryRoot
+    $pair = Invoke-SDATestPair
+    foreach ($shell in @('Bash', 'PowerShell')) {
+        Assert-SDATest ($pair.$shell.ExitCode -eq 2 -and $pair.$shell.StdErr.Contains('Sammelband.md') -and $pair.$shell.StdErr.Contains('Baseline-Version')) "$shell accepted duplicate embedded baseline."
+    }
+    Assert-SDATest ($before -ceq (Get-SDATestSnapshot $temporaryRoot)) 'Embedded metadata status mutated evidence.'
+    $count++
+    # Historical tables and narrative mentions remain valid; only metadata fields are unique.
+    # Historientabellen und Textnennungen bleiben erlaubt; eindeutig sind Metadatenfelder.
+    New-SDATestFixture
+    $path = Join-Path $temporaryRoot 'docs/secure-development/Richtlinie.md'
+    Add-Content $path ($nl + '## History' + $nl + '| 0.9.0 | Historical version |')
+    $path = Join-Path $temporaryRoot 'docs/secure-development/related.md'
+    Add-Content $path ($nl + 'Example: **Version / Version:** 1.0.0')
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 0 -and $pair.PowerShell.ExitCode -eq 0) 'Historical/narrative metadata mentions must stay valid.'
+    "PASS: $count rebound active-metadata negative cases per shell; historical/narrative positive parity"
 }
 
 function Test-SDAAcceptedRiskIds {
@@ -684,6 +795,7 @@ try {
         }
     }
 
+    Test-SDAActiveMetadata
     Test-SDAContextAndRiskTypes
     Test-SDAAcceptedRiskIds
     New-SDATestFixture
@@ -722,7 +834,7 @@ try {
         )
         Write-SDATestText $checklistPath $text
         Update-SDATestBindings
-    } 'Dokumentversion stimmt nicht'
+    } 'Aktive Metadaten fehlen, weichen ab oder sind doppelt: checklisten/CL_03.md (**Version / Version:**)'
 
     Invoke-SDANegativeCase {
         $compendiumPath = Join-Path $temporaryRoot 'docs/secure-development/Sammelband.md'

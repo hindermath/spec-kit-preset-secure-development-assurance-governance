@@ -315,6 +315,68 @@ function Test-SDAGateFile {
     return $document
 }
 
+function Test-SDAActiveMetadataField {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$RelativePath,
+        [Parameter(Mandatory)][string]$Prefix,
+        [Parameter(Mandatory)][string]$Expected,
+        [string]$Heading = '',
+        [switch]$AllowEmbeddedBaseline
+    )
+    # Only the first metadata block/table may supply the value; body matches cannot mask drift.
+    # Nur der erste Metadatenblock bzw. die erste Tabelle liefert den aktiven Wert.
+    $text = (Get-Content -LiteralPath $Path -Raw).Replace("`r`n", "`n").Replace("`r", "`n")
+    $count = 0; $matched = 0; $sections = 0
+    $started = $false; $active = $false; $table = $false; $ended = $false
+    $introClosed = $false; $titleSeen = $false
+    $embedded = $false; $embeddedCount = 0; $invalid = $false
+    foreach ($line in ($text -split "`n")) {
+        if ($Heading) {
+            if ($line.StartsWith('## ', [StringComparison]::Ordinal)) {
+                $active = $line -ceq $Heading
+                if ($active) { $sections++ }
+                $table = $false; $ended = $false
+            }
+            if ($active -and $line.StartsWith('|', [StringComparison]::Ordinal) -and -not $ended) { $table = $true }
+            if ($active -and $line -cne $Heading -and -not $line.StartsWith('|', [StringComparison]::Ordinal) -and
+                ($table -or -not [string]::IsNullOrWhiteSpace($line))) { $ended = $true }
+            if ($line.StartsWith($Prefix, [StringComparison]::Ordinal) -and ($line -split '\|').Count -eq 4) {
+                $count++
+                if ($active -and $table -and -not $ended -and $line -ceq $Expected) { $matched++ }
+            }
+        } else {
+            if (-not $started -and $line -cmatch '^#+ ') {
+                if ($titleSeen) { $introClosed = $true }
+                $titleSeen = $true
+            }
+            if (-not $started -and $titleSeen -and $line -cnotmatch '^#+ ' -and
+                -not [string]::IsNullOrWhiteSpace($line) -and -not $line.StartsWith('>', [StringComparison]::Ordinal) -and
+                $line -cnotmatch '^\*\*[^*]+:\*\*') { $introClosed = $true }
+            if (-not $started -and -not $introClosed -and $line -cmatch '^\*\*[^*]+:\*\*') { $started = $true; $active = $true }
+            if ($started -and $line -cnotmatch '^\*\*[^*]+:\*\*') { $active = $false }
+            # Embedded checklists own their baseline; duplicate fields within that block still fail.
+            # Eingebettete Checklisten haben eigene Baselines; doppelte Felder im Block bleiben Fehler.
+            if ($AllowEmbeddedBaseline -and -not $active -and $line -cmatch '^\*\*Dokument-ID / Document ID:\*\* CL-(0[1-9]|1[0-2])$') {
+                $embedded = $true; $embeddedCount = 0
+            }
+            if ($line -cnotmatch '^\*\*[^*]+:\*\*') { $embedded = $false }
+            if ($embedded -and $line.StartsWith($Prefix, [StringComparison]::Ordinal)) {
+                $embeddedCount++
+                if ($embeddedCount -gt 1) { $invalid = $true }
+                continue
+            }
+            if ($line.StartsWith($Prefix, [StringComparison]::Ordinal)) {
+                $count++
+                if ($active -and $line -ceq $Expected) { $matched++ }
+            }
+        }
+    }
+    if ($count -ne 1 -or $matched -ne 1 -or $invalid -or ($Heading -and $sections -ne 1)) {
+        Stop-SDAValidation "Aktive Metadaten fehlen, weichen ab oder sind doppelt: ${RelativePath} (${Prefix})"
+    }
+}
+
 function Test-SDADocumentVersion {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -322,14 +384,12 @@ function Test-SDADocumentVersion {
         [Parameter(Mandatory)][string]$Version,
         [Parameter(Mandatory)][string]$Kind
     )
-    $text = Get-Content -LiteralPath $Path -Raw
-    $marker = switch ($Kind) {
-        'guideline' { "| Versionsnummer | ${Version} |" }
-        'compendium' { "**Dokumentversion / Document version:** ${Version}" }
-        default { "**Version / Version:** ${Version}" }
-    }
-    if (-not $text.Contains($marker, [StringComparison]::Ordinal)) {
-        Stop-SDAValidation "Dokumentversion stimmt nicht: ${RelativePath}"
+    if ($Kind -eq 'guideline') {
+        Test-SDAActiveMetadataField $Path $RelativePath '| Versionsnummer |' "| Versionsnummer | ${Version} |" '## Dokumenten-Metadaten'
+        Test-SDAActiveMetadataField $Path $RelativePath '| Version |' "| Version | ${Version} |" '## Document Metadata'
+    } else {
+        $prefix = if ($Kind -eq 'compendium') { '**Dokumentversion / Document version:**' } else { '**Version / Version:**' }
+        Test-SDAActiveMetadataField $Path $RelativePath $prefix "${prefix} ${Version}"
     }
 }
 
@@ -418,9 +478,7 @@ function Test-SDABaselineContract {
     foreach ($checklist in @($manifest.checklists)) {
         $path = Join-Path $docRoot $checklist.path
         $text = Get-Content -LiteralPath $path -Raw
-        if (-not $text.Contains("**Dokument-ID / Document ID:** $($checklist.id)", [StringComparison]::Ordinal)) {
-            Stop-SDAValidation "Dokument-ID stimmt nicht: $($checklist.path)"
-        }
+        Test-SDAActiveMetadataField $path $checklist.path '**Dokument-ID / Document ID:**' "**Dokument-ID / Document ID:** $($checklist.id)"
         foreach ($match in [regex]::Matches($text, '(?m)^#### (CL-[0-9]{2}-[0-9]{2}):')) {
             $itemIds.Add($match.Groups[1].Value)
         }
@@ -440,9 +498,7 @@ function Test-SDABaselineContract {
     if ((($itemIds | Sort-Object) -join '|') -ne (($compendiumIds | Sort-Object) -join '|')) {
         Stop-SDAValidation 'Sammelbanddrift gegenüber den zwölf Einzelchecklisten.'
     }
-    if (-not $compendiumText.Contains("**Baseline-Version / Baseline version:** ${baselineVersion}", [StringComparison]::Ordinal)) {
-        Stop-SDAValidation 'Baseline-Version im Sammelband stimmt nicht.'
-    }
+    Test-SDAActiveMetadataField $compendiumPath $manifest.compendium.path '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** ${baselineVersion}" -AllowEmbeddedBaseline
     foreach ($relative in @($manifest.managedBinaryFiles) + @($manifest.managedReferenceFiles)) {
         Test-SDARelativePath $relative 'Verwalteter Referenzpfad'
         if (-not (Test-Path -LiteralPath (Join-Path $docRoot $relative) -PathType Leaf)) {

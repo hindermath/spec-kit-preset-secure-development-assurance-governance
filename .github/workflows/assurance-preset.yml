@@ -13,7 +13,9 @@ jobs:
   assurance:
     name: Assurance contracts (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # Rebound metadata cases add native process startup on Windows; keep all
+    # assertions and allow the measured >15 minute regression to finish.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

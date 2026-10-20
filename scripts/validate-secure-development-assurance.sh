@@ -207,15 +207,47 @@ validate_gate_file() {
     die "Externe Vergleichsgrenze fehlt: $file"
 }
 
+validate_active_metadata() {
+  local full_path="$1" relative="$2" prefix="$3" expected="$4" heading="${5:-}" embedded_baseline="${6:-}"
+  # Only active metadata counts as a match; duplicate fields anywhere fail closed.
+  # Nur aktive Metadaten gelten als Treffer; doppelte Felder bleiben unzulaessig.
+  "${SDA_JQ[@]}" -jRs 'sub("^\uFEFF"; "") | gsub("\r\n?"; "\n")' "$full_path" |
+    awk -v prefix="$prefix" -v expected="$expected" -v heading="$heading" -v embedded_baseline="$embedded_baseline" '
+      { sub(/\r$/, "") }
+      heading != "" {
+        if ($0 ~ /^## /) { active = ($0 == heading); if (active) sections++; table = 0; ended = 0 }
+        if (active && $0 ~ /^\|/ && !ended) table = 1
+        if (active && $0 != heading && $0 !~ /^\|/ && (table || $0 !~ /^[[:space:]]*$/)) ended = 1
+        if (index($0, prefix) == 1 && split($0, cells, "[|]") == 4) {
+          count++; if (active && table && !ended && $0 == expected) matched++
+        }
+        next
+      }
+      !started && /^#+ / { headings++; if (headings > 1) closed = 1 }
+      !started && headings && $0 !~ /^#+ / && $0 !~ /^[[:space:]]*$/ && $0 !~ /^>/ && $0 !~ /^\*\*[^*]+:\*\*/ { closed = 1 }
+      !started && !closed && /^\*\*[^*]+:\*\*/ { started = 1; active = 1 }
+      started && $0 !~ /^\*\*[^*]+:\*\*/ { active = 0 }
+      # Embedded checklist blocks own their baseline, separately from the compendium header.
+      embedded_baseline && !active && /^\*\*Dokument-ID \/ Document ID:\*\* CL-(0[1-9]|1[0-2])$/ { embedded = 1; embedded_count = 0 }
+      $0 !~ /^\*\*[^*]+:\*\*/ { embedded = 0 }
+      embedded && index($0, prefix) == 1 { embedded_count++; if (embedded_count > 1) invalid = 1; next }
+      index($0, prefix) == 1 { count++; if (active && $0 == expected) matched++ }
+      END { exit !(count == 1 && matched == 1 && !invalid && (heading == "" || sections == 1)) }
+    ' || die "Aktive Metadaten fehlen, weichen ab oder sind doppelt: $relative ($prefix)"
+}
+
 validate_document_version() {
   local full_path="$1"
   local relative="$2"
   local version="$3"
   local kind="$4"
   case "$kind" in
-    guideline) grep -Fq "| Versionsnummer | $version |" "$full_path" || die "Richtlinienversion stimmt nicht: $relative" ;;
-    compendium) grep -Fq "**Dokumentversion / Document version:** $version" "$full_path" || die "Sammelbandversion stimmt nicht: $relative" ;;
-    *) grep -Fq "**Version / Version:** $version" "$full_path" || die "Dokumentversion stimmt nicht: $relative" ;;
+    guideline)
+      validate_active_metadata "$full_path" "$relative" '| Versionsnummer |' "| Versionsnummer | $version |" '## Dokumenten-Metadaten'
+      validate_active_metadata "$full_path" "$relative" '| Version |' "| Version | $version |" '## Document Metadata'
+      ;;
+    compendium) validate_active_metadata "$full_path" "$relative" '**Dokumentversion / Document version:**' "**Dokumentversion / Document version:** $version" ;;
+    *) validate_active_metadata "$full_path" "$relative" '**Version / Version:**' "**Version / Version:** $version" ;;
   esac
 }
 
@@ -285,7 +317,7 @@ validate_baseline_contract() {
   while IFS=$'\t' read -r id relative _version; do
     local checklist_file
     checklist_file="$(dirname "$manifest_file")/$relative"
-    grep -Fq "**Dokument-ID / Document ID:** $id" "$checklist_file" || die "Dokument-ID stimmt nicht: $relative"
+    validate_active_metadata "$checklist_file" "$relative" '**Dokument-ID / Document ID:**' "**Dokument-ID / Document ID:** $id"
     grep -Eo '^#### CL-[0-9]{2}-[0-9]{2}:' "$checklist_file" | sed 's/^#### //; s/:$//' >> "$ids_file"
   done < <("${SDA_JQ[@]}" -r '.checklists[] | [.id,.path,.version] | @tsv' "$manifest_file")
   local item_count actual_item_count
@@ -298,8 +330,7 @@ validate_baseline_contract() {
   compendium_path="$("${SDA_JQ[@]}" -r '.compendium.path' "$manifest_file")"
   grep -Eo '^#### CL-[0-9]{2}-[0-9]{2}:' "$(dirname "$manifest_file")/$compendium_path" | sed 's/^#### //; s/:$//' > "$compendium_ids_file"
   [[ "$(LC_ALL=C sort "$ids_file")" == "$(LC_ALL=C sort "$compendium_ids_file")" ]] || die 'Sammelbanddrift gegenüber den zwölf Einzelchecklisten.'
-  grep -Fq "**Baseline-Version / Baseline version:** $baseline_version" "$(dirname "$manifest_file")/$compendium_path" ||
-    die 'Baseline-Version im Sammelband stimmt nicht.'
+  validate_active_metadata "$(dirname "$manifest_file")/$compendium_path" "$compendium_path" '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** $baseline_version" '' 'embedded-baseline'
   rm -f "$ids_file" "$compendium_ids_file"
 
   while IFS= read -r relative; do
