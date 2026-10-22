@@ -15,6 +15,11 @@ requires:
 provides:
   templates:
     - type: "template"
+      name: "secure-development-assurance-governance-model-routing"
+      file: "model-routing.json"
+      description: "Command roles: status summary versus substantive assurance review"
+
+    - type: "template"
       name: "secure-development-evidence-contract"
       file: "templates/secure-development-evidence-contract.md"
       description: "Portable evidence and decision-boundary contract"

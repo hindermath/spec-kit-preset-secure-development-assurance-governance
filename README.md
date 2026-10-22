@@ -1,5 +1,18 @@
 # Secure Development Assurance Governance
 
+## Unveroeffentlicht: Routing-Vertrag / Unreleased routing contract
+
+Der Quellbranch deklariert `speckit.secure-development-status` als
+`fast-mechanical` fuer die lesbare Zusammenfassung und die fachliche
+`speckit.secure-development-review`-Bewertung als `frontier-reasoning`.
+Deterministische Validatoren bleiben modellfrei; ihr Exitcode ersetzt keine
+fachliche Abnahme. Keine neue Version oder Installation ist damit erfolgt.
+
+The source branch adds an explicit command routing catalog: status summaries
+use fast-mechanical; substantive assurance reviews use frontier-reasoning.
+Deterministic validators remain model-free and never replace human acceptance.
+This source change does not release or install a new version.
+
 Patch **0.1.5** korrigiert die Prüfung aktiver, eindeutiger Dokumentversionen,
 Checklisten-IDs und der Sammelband-Baseline in beiden Shells.
 [Release-Nachweis / Release record](docs/release-0.1.5-validation.md).
