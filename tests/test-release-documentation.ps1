@@ -38,6 +38,10 @@ switch($id){
         }
         Assert-Documentation (-not $flow.Contains('[Zweck und Einsatzbereich')) 'lifecycle is not a duplicate contents list'
         Assert-Documentation ($flow.Contains('keine Pilot-, Projekt- oder allgemeine Freigabe')) 'technical evidence grants no human approval'
+        Assert-Documentation ($readme.Contains('[Routing-Vertrag](model-routing.json)')) 'routing contract linked'
+        foreach($term in @('fast-mechanical','frontier-reasoning',('modellfreie Skriptpr'+[char]0xfc+'fungen'),'model-free script checks','kein Schema 3')){
+            Assert-Documentation ($readme.Contains($term)) "stable routing explains $term"
+        }
     }
 }
 "PASS: $assertions release-documentation assertions; no model calls or network downloads."

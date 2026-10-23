@@ -1,13 +1,13 @@
 # Secure Development Assurance Governance
 
-Patch **0.1.6** berichtigt den beschriebenen Evidence-Lebenszyklus.
+Patch **0.1.7** ergänzt den fehlenden stabilen Command-zu-Rolle-Vertrag.
 Validatoren, vier Gates und menschliche Entscheidungsrechte bleiben unverändert.
-[Release-Vorbereitung / Release preparation](docs/release-0.1.6-validation.md).
+[Release-Vorbereitung / Release preparation](docs/release-0.1.7-validation.md).
 
-*Patch 0.1.6 corrects the documented evidence lifecycle. Validators, the four
+*Patch 0.1.7 adds the missing stable command-to-role contract. Validators, the four
 gates and human decision authority remain unchanged.*
 
-Version: `0.1.6`
+Version: `0.1.7`
 
 Status: kompatible Patch-Version zur praktischen Erprobung
 
@@ -152,15 +152,15 @@ another Spec Kit workflow.*
 
 ## 4. Zusammenspiel mit anderen Presets / Composition
 
-Das [Manifest](preset.yml) registriert zwei eigene Commands und den
-`secure-development-evidence-contract`, keine automatischen
+Das [Manifest](preset.yml) registriert zwei eigene Commands, den
+`secure-development-evidence-contract` und den [Routing-Vertrag](model-routing.json), keine automatischen
 Specify-/Plan-/Tasks-Wrapper. Installation erzeugt keine Gate-Dateien und
 startet keinen Review. Die Evidence folgt dem Vertrag, ist aber vom Projekt
 mit echten Quellen und Bewertungen zu erstellen. Die Validatoren lesen nur;
 ein Agent darf ausschließlich ausdrücklich autorisierte Review-Evidence ändern.
 
-*The [manifest](preset.yml) registers two standalone commands and the evidence
-contract, not automatic Specify/Plan/Tasks wrappers. Installation creates no
+*The [manifest](preset.yml) registers two standalone commands, the evidence
+contract and the [routing contract](model-routing.json), not automatic Specify/Plan/Tasks wrappers. Installation creates no
 gate files or review. The project supplies actual sources and assessments
 under the contract. Validators only read; an agent may change only explicitly
 authorized review evidence.*
@@ -188,6 +188,46 @@ Trust, Architekturentscheidungen und Cloud-Assurance. Dieses Preset prüft
 dagegen, ob die projektgeführte Secure-Development-Baseline und die
 dazugehörige Evidence konsistent gebunden sind.
 
+### Stabiles Model-Routing / Stable model routing
+
+Eine Routing-Rolle beschreibt die Art der Aufgabe, nicht ein bestimmtes Modell.
+Ab v0.1.7 sind beide Commands im bestehenden Schema 1.0 ausdrücklich zugeordnet:
+
+| Command | Rolle / Role | Aufgabe / Task |
+|---|---|---|
+| `speckit.secure-development-status` | `fast-mechanical` | Vorhandene Ergebnisse prüfen und erklären / Check and explain existing results |
+| `speckit.secure-development-review` | `frontier-reasoning` | Ein benanntes Gate fachlich bewerten / Assess one named gate |
+
+Für geroutete Agentenarbeit brauchst du zusätzlich
+[Model Routing Governance](https://github.com/hindermath/spec-kit-preset-model-routing-governance)
+und eine ausdrücklich eingerichtete lokale Modellbindung. Die Installation
+dieses Presets richtet keine Modelle ein und startet keinen Agenten.
+Bei einem autonomen Lauf wertet der bestehende Runner die Verträge aus.
+Überlappende Rollen werden nach der stärksten Anforderung aufgelöst, nicht
+nach der Installationspriorität. Eigene Kombinationen separat prüfen.
+Fehlende Verträge oder unpassende Profile blockieren; es gibt keine stille Ersatzwahl.
+
+Die direkten Bash-/PowerShell-Validatoren bleiben modellfreie Skriptprüfungen.
+Sie sind auch ohne Routing-Preset nutzbar. Ein Agenten-Review kann Ergebnisse
+fachlich bewerten und nur ausdrücklich erlaubte Review-Evidence bearbeiten;
+ein grüner Skripttest ersetzt diese Bewertung und menschliche Freigaben nicht.
+Dieser Patch ergänzt nur den stabilen Vertrag. Er enthält keine neue
+dynamische Auswahl, kein Schema 3 und keine Zusage über Modellwechsel im laufenden Chat.
+
+*A routing role describes the task, not a model name. The two commands use the
+existing schema 1.0 and the roles shown above. Routed agent work also needs
+Model Routing Governance and an explicitly configured local model binding.
+Installing Assurance does not configure models or start an agent. The existing
+autonomous runner reads these contracts and retains the strongest overlapping
+role, independently of installation priority. Check custom combinations
+separately. Missing contracts or unsuitable profiles block without a silent fallback.*
+
+*Direct Bash/PowerShell validators remain model-free script checks and work
+without the routing preset. An agent review can assess results and edit only
+explicitly authorized review evidence. A successful script check replaces
+neither that assessment nor human approval. This patch only completes the
+stable contract: no new dynamic selection, schema 3 or live-chat model switching.*
+
 ### Empfohlene Reihenfolge
 
 | Priorität | Preset | Rolle |
@@ -211,12 +251,18 @@ preset between them without granting execution or approval authority.*
 ### Veröffentlichtes Tag-ZIP
 
 ~~~bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.6.zip --priority 15
+specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.7.zip --priority 15
 
 specify preset info secure-development-assurance-governance
 specify preset resolve secure-development-evidence-contract
 specify check
 ~~~
+
+Der v0.1.7-Befehl gilt erst nach gesonderter Veröffentlichung. Bis dahin ist
+dies ein Release-Kandidat, kein bereits verfügbares Tag-ZIP.
+
+*The v0.1.7 command applies only after separate publication. Until then this
+is a release candidate, not an available tag archive.*
 
 ### Lokaler Entwicklungs-Checkout
 
@@ -514,6 +560,16 @@ Rahmen der ausdrücklich erteilten Evidence-Autorität vornehmen.
 *Status validates and summarizes the complete context without writing.
 Review validates one named gate and remains bounded to explicitly authorized
 review evidence.*
+
+Im gerouteten Agentenablauf gilt `fast-mechanical` für Status und
+`frontier-reasoning` für Review. Direkte Validator-Aufrufe starten kein Modell.
+Bei einem Routing-Blocker den Vertrag und die lokale Bindung mit der Betreuung
+prüfen; weder Evidence ändern noch eine schwächere Rolle zum Bestehen wählen.
+
+*Routed agent work uses fast-mechanical for status and frontier-reasoning for
+review. Direct validator calls start no model. Ask the maintainer to check
+the contract and local binding when routing blocks; do not alter evidence
+or select a weaker role merely to pass.*
 
 <a id="assurance-section-12"></a>
 
@@ -915,11 +971,12 @@ remains compatible after an LF-output probe. A legacy native jq that changes
 line endings without binary support fails with an explicit tool diagnostic,
 never a fabricated evidence result.*
 
-Vor Lieferung beide Regressionen ausführen:
+Vor Lieferung die folgenden Regressionen ausführen:
 
 ~~~powershell
 pwsh -NoProfile -File tests/test-secure-development-assurance.ps1
 pwsh -NoProfile -File tests/test-installed-surfaces.ps1
+pwsh -NoProfile -File tests/test-release-documentation.ps1
 ~~~
 
 Der zweite Test erzeugt ein isoliertes Projekt und prüft acht generierte
@@ -928,6 +985,22 @@ denselben Test gegen das veröffentlichte HTTPS-Tag-ZIP.
 
 *The installation test executes all eight generated status/review surfaces.
 Use its ArchiveUrl parameter to repeat the test against the published ZIP.*
+
+Die Routing-Regression benötigt separat bereitgestellte Quellen von Model
+Routing v0.1.5 und Autonomous Run v0.4.5; die exakten Commits stehen im
+[v0.1.7-Prüfnachweis](docs/release-0.1.7-validation.md). Pfade ersetzen:
+
+~~~powershell
+pwsh -NoProfile -File tests/test-stable-routing.ps1 -ModelRoutingRoot ../model-routing -AutonomousRoot ../autonomous
+~~~
+
+Die neue CI stellt diese fest gebundenen Quellen bereit. Der Test lädt keine
+Modelle und prüft nur Wegwerf-Fixtures, keine persönliche Konfiguration.
+
+*The routing regression needs separately supplied Model Routing v0.1.5 and
+Autonomous Run v0.4.5 sources at the exact commits in the validation record.
+Replace the paths above. The new CI checks out those pinned sources. The test
+uses disposable fixtures only, not models or personal configuration.*
 
 `v0.1.0` ist das erste öffentliche Release und ausdrücklich für praktische
 Erprobung vorgesehen. Semantische Versionierung gilt:

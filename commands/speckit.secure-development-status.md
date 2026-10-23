@@ -4,6 +4,19 @@ description: Secure-Development-Evidence vollständig und strikt read-only prüf
 
 # Secure Development Status
 
+## Routing / Routing
+
+Im bestehenden Model-Routing gilt `fast-mechanical`: vorhandene Ergebnisse
+prüfen und verständlich berichten. Der Vertrag steht in `model-routing.json`.
+Er richtet keine Modelle ein und wechselt keinen laufenden Chat um.
+Der direkte Validator ist eine modellfreie Skriptprüfung. Fehlende Verträge
+oder unpassende lokale Profile dürfen nicht durch Raten umgangen werden.
+
+*Stable routing uses fast-mechanical to check and explain existing results.
+The model-routing.json contract neither configures models nor switches a live
+chat. The direct validator is model-free. Never guess around missing contracts
+or unsuitable local profiles.*
+
 Syntax:
 
 ~~~text
