@@ -1,13 +1,13 @@
 # Secure Development Assurance Governance
 
-Patch **0.1.5** korrigiert die Prüfung aktiver, eindeutiger Dokumentversionen,
-Checklisten-IDs und der Sammelband-Baseline in beiden Shells.
-[Release-Nachweis / Release record](docs/release-0.1.5-validation.md).
+Patch **0.1.6** berichtigt den beschriebenen Evidence-Lebenszyklus.
+Validatoren, vier Gates und menschliche Entscheidungsrechte bleiben unverändert.
+[Release-Vorbereitung / Release preparation](docs/release-0.1.6-validation.md).
 
-*Patch 0.1.5 validates exact active document metadata in both shells; matching
-body text or duplicate fields cannot hide stale values. Authority is unchanged.*
+*Patch 0.1.6 corrects the documented evidence lifecycle. Validators, the four
+gates and human decision authority remain unchanged.*
 
-Version: `0.1.5`
+Version: `0.1.6`
 
 Status: kompatible Patch-Version zur praktischen Erprobung
 
@@ -211,7 +211,7 @@ preset between them without granting execution or approval authority.*
 ### Veröffentlichtes Tag-ZIP
 
 ~~~bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.5.zip --priority 15
+specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.6.zip --priority 15
 
 specify preset info secure-development-assurance-governance
 specify preset resolve secure-development-evidence-contract
@@ -263,14 +263,36 @@ Kontexte.
 
 Der Lebenszyklus ist:
 
-1. [Zweck und Einsatzbereich / Purpose and Scope](#assurance-section-1)
-2. [Was das Preset prüft / What the Preset Validates](#assurance-section-2)
-3. [Was das Preset nicht leistet / What It Does Not Do](#assurance-section-3)
-   Entscheidungsstände zusammenführen.
-4. [Zusammenspiel mit anderen Presets / Composition](#assurance-section-4)
-   CI-Auswirkungen separat bewerten.
-5. [Installation / Installation](#assurance-section-5)
-6. [Evidence-Verzeichnis und Lebenszyklus / Evidence Directory and Lifecycle](#assurance-section-6)
+1. **Baseline erfassen:** Projekt-Manifest, aktive Richtlinie und Checklisten
+   sichten. Versionen, Hashes und den Review in `baseline.json` binden.
+2. **Änderungen prüfen:** Für jede Änderung eine passende Datei unter `deltas/`
+   führen. Auswirkungen, Prüfergebnisse und offene Punkte nachvollziehbar halten.
+3. **Image Impact bewerten:** Build-, Container- und CI-Auswirkungen getrennt in
+   `image-impact.json` prüfen. Ohne Image-Änderung die Pflichtfelder trotzdem
+   bewerten; `N/A` braucht eine Begründung, es ersetzt keine Prüfung.
+4. **Closure dokumentieren:** Ergebnisse und Restrisiken in `closure.json`
+   zusammenführen. Technische Validierung, Pilotfreigabe, Projektabnahme und
+   allgemeine Freigabe bleiben vier getrennte Entscheidungsstände. Technische
+   Evidence erteilt keine Pilot-, Projekt- oder allgemeine Freigabe.
+5. **Matrix abgleichen:** `evidence-matrix.md` mit den vier Gates abgleichen.
+   Ein geänderter oder abgelaufener Nachweis verlangt eine gezielte neue Prüfung.
+6. **Status lesen:** Den Statusbefehl für diesen Kontext ausführen. `Ready`
+   beschreibt technische Evidence; der Status erteilt keine menschliche Freigabe.
+
+*Lifecycle: (1) record the project baseline, active policy/checklists, versions,
+hashes and review in baseline.json; (2) review each change in deltas/;
+(3) assess build/container/CI impact in image-impact.json, including justified
+N/A entries when no image changes; (4) combine results and residual risks in
+closure.json while keeping technical validation, pilot authorization, project
+acceptance and general release as four separate decision states. Technical
+evidence grants none of those human approvals; (5) reconcile
+evidence-matrix.md with the four gates and re-review changed/expired evidence;
+(6) read the context status. Ready describes technical evidence, not approval.*
+
+Diese Liste erklärt den Arbeitsablauf, keine neue Gate-Abhängigkeit.
+Die verbindlichen Prüfungen stehen unter [Vier Assurance-Gates](#assurance-section-7).
+*This list explains work, not a new gate dependency. The four-gate contract below
+remains authoritative.*
 
 *Each review context contains one baseline, one or more deltas, closure,
 image-impact evidence, and a readable matrix. Separate projects and releases
