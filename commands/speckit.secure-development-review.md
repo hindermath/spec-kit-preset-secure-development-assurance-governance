@@ -91,3 +91,15 @@ array; one risk uses [{...}], not {...}. Null, booleans, numbers and strings
 are invalid. Empty arrays are allowed except for ReadyWithAcceptedRisks.
 Other outcomes may omit the optional field. Risk metadata requirements and
 all human decision boundaries remain unchanged.*
+
+## Nutzungshilfe / Reader help
+
+DE: Projektgeführte Sicherheitsnachweise auf Bindung und Konsistenz prüfen; technische Ergebnisse und menschliche Entscheidungen trennen. Diese Command-Erklärung ändert keine Berechtigungen oder Voraussetzungen.
+Die bestehenden technischen Feldnamen und Statuswerte nicht übersetzen oder
+nur zum Bestehen eines Tests verändern. Einführung, Begriffe, Beispiel,
+Ergebnis und Fehlerhilfe stehen im [deutschen Leserpfad](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/blob/main/docs/user-guide.md).
+
+EN: Check binding and consistency of project-owned security evidence; separate technical results from human decisions. This command explanation changes no authority or prerequisites.
+Keep technical field names and states unchanged; never alter them just to pass.
+See the [English reader path](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/blob/main/docs/user-guide.EN.md)
+for introduction, terms, example, result and troubleshooting.

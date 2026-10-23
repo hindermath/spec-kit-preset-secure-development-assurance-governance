@@ -1,5 +1,14 @@
 # Secure Development Assurance Governance
 
+<!-- current-package: 0.1.7 -->
+
+**Leserpfad / Reader path:** [Deutsch: Einstieg, Begriffe und Fehlerhilfe](docs/user-guide.md) · [English: start, terms and troubleshooting](docs/user-guide.EN.md).
+
+Quellkandidat **v0.1.7**. Der [Release-Stand](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/releases) wird getrennt geprüft; ein Commit auf main ist noch keine Veröffentlichung oder Installation.
+
+*Source candidate v0.1.7. The release page records actual publication separately; a main-branch commit is not publication or installation.*
+
+
 Patch **0.1.7** ergänzt den fehlenden stabilen Command-zu-Rolle-Vertrag.
 Validatoren, vier Gates und menschliche Entscheidungsrechte bleiben unverändert.
 [Release-Vorbereitung / Release preparation](docs/release-0.1.7-validation.md).
@@ -9,7 +18,7 @@ gates and human decision authority remain unchanged.*
 
 Version: `0.1.7`
 
-Status: kompatible Patch-Version zur praktischen Erprobung
+Status: Quellkandidat zur Sichtung / source candidate for review
 
 Priorität: `15`
 
