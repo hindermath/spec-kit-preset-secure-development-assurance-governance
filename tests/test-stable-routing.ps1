@@ -50,6 +50,14 @@ function Get-SDARoutingSnapshot {
     return $rows -join "`n"
 }
 
+function ConvertTo-SDARoutingDiagnostic {
+    param([string]$Text)
+    # DE/EN: Strip presentation codes before console margins; keep every message word.
+    $plain = [regex]::Replace($Text, '\x1B\[[0-?]*[ -/]*[@-~]', '')
+    $plain = [regex]::Replace($plain, '\s*\|\s*', ' ')
+    return [regex]::Replace($plain, '\s+', ' ')
+}
+
 function Invoke-SDARoutingProcess {
     param([string]$Script, [string[]]$Arguments, [bool]$ReadOnly = $true, [string]$HarnessFixtureDirectory = '')
     $before = Get-SDARoutingSnapshot
@@ -73,8 +81,7 @@ function Invoke-SDARoutingProcess {
     }
     # DE: PowerShell kann Fehlermeldungen fuer die Konsole mit Zeilen-/Randmarken umbrechen.
     # EN: Ignore console wrapping only; exit codes and semantic diagnostics stay mandatory.
-    $diagnosticText = [regex]::Replace($stderr.GetAwaiter().GetResult(), '\s*\|\s*', ' ')
-    $diagnosticText = [regex]::Replace($diagnosticText, '\s+', ' ')
+    $diagnosticText = ConvertTo-SDARoutingDiagnostic $stderr.GetAwaiter().GetResult()
     $result = @{ Code = $process.ExitCode; Out = $stdout.GetAwaiter().GetResult(); Error = $diagnosticText }
     $process.Dispose()
     if ($ReadOnly) { Assert-SDARouting ($before -ceq (Get-SDARoutingSnapshot)) 'read-only fixture changed files' }
@@ -83,6 +90,12 @@ function Invoke-SDARoutingProcess {
 
 try {
     $null = [IO.Directory]::CreateDirectory($temporary)
+    $message = "Routing-Rolle fuer speckit.secure-development-review muss 'frontier-reasoning' sein."
+    $wrapped = $message.Replace("muss '", "muss`n | '")
+    $escape = [string][char]27
+    $styled = "${escape}[31;1m" + $wrapped.Replace("`n", "${escape}[0m`n${escape}[31;1m") + "${escape}[0m"
+    Assert-SDARouting ((ConvertTo-SDARoutingDiagnostic $wrapped) -ceq $message) 'plain wrapped diagnostic retains exact message'
+    Assert-SDARouting ((ConvertTo-SDARoutingDiagnostic $styled) -ceq $message) 'ANSI wrapped diagnostic retains exact message'
     $manifest = [IO.File]::ReadAllText((Join-Path $root 'preset.yml'))
     $contractPath = Join-Path $root 'model-routing.json'
     $contractText = [IO.File]::ReadAllText($contractPath)
