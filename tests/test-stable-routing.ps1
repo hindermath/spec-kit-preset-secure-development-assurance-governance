@@ -22,6 +22,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+$ModelRoutingRoot = (Resolve-Path -LiteralPath $ModelRoutingRoot -ErrorAction Stop).ProviderPath
+$AutonomousRoot = (Resolve-Path -LiteralPath $AutonomousRoot -ErrorAction Stop).ProviderPath
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('assurance-routing-' + [guid]::NewGuid().ToString('N'))
 $assertions = 0
 
@@ -49,7 +51,7 @@ function Get-SDARoutingSnapshot {
 }
 
 function Invoke-SDARoutingProcess {
-    param([string]$Script, [string[]]$Arguments, [bool]$ReadOnly = $true)
+    param([string]$Script, [string[]]$Arguments, [bool]$ReadOnly = $true, [string]$HarnessFixtureDirectory = '')
     $before = Get-SDARoutingSnapshot
     $info = [Diagnostics.ProcessStartInfo]::new()
     $info.FileName = (Get-Command pwsh -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
@@ -58,6 +60,9 @@ function Invoke-SDARoutingProcess {
     $info.UseShellExecute = $false
     $info.RedirectStandardOutput = $true
     $info.RedirectStandardError = $true
+    if ($HarnessFixtureDirectory) {
+        $info.Environment['PATH'] = $HarnessFixtureDirectory + [IO.Path]::PathSeparator + $info.Environment['PATH']
+    }
     $process = [Diagnostics.Process]::Start($info)
     $stdout = $process.StandardOutput.ReadToEndAsync()
     $stderr = $process.StandardError.ReadToEndAsync()
@@ -192,14 +197,39 @@ try {
     Assert-SDARouting ($missingProfile.Code -ne 0 -and $missingProfile.Error.Contains('benoetigt genau ein lokales Runner-Profil')) 'missing profile blocked'
 
     $resolver = Join-Path $ModelRoutingRoot 'scripts/resolve-model-routing.ps1'
+    # DE: Der stabile Resolver verlangt auch bei Discovery-Fixtures --version.
+    # EN: Provide a version-only double; never depend on a signed-in native CLI.
+    $fixtureBin = Join-Path $temporary 'bin'
+    $null = [IO.Directory]::CreateDirectory($fixtureBin)
+    if ($IsWindows) {
+        $versionShim = @'
+@echo off
+if not "%~1"=="--version" exit /b 97
+if not "%~2"=="" exit /b 97
+echo codex-fixture 0.0.0
+exit /b 0
+'@
+        [IO.File]::WriteAllText((Join-Path $fixtureBin 'codex.cmd'), ($versionShim.Replace("`r`n", "`n").Replace("`n", "`r`n") + "`r`n"), [Text.UTF8Encoding]::new($false))
+    } else {
+        $versionShim = @'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$#" == 1 && "$1" == --version ]] || exit 97
+printf 'codex-fixture 0.0.0\n'
+'@
+        $shimPath = Join-Path $fixtureBin 'codex'
+        [IO.File]::WriteAllText($shimPath, $versionShim.Replace("`r`n", "`n"), [Text.UTF8Encoding]::new($false))
+        [IO.File]::SetUnixFileMode($shimPath, [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite -bor [IO.UnixFileMode]::UserExecute)
+    }
     $discoveryFixture = Join-Path $ModelRoutingRoot 'tests/fixtures/codex-models.json'
     $discoveredPath = Join-Path $temporary 'fixture-discovery.json'
     $discoveryArguments = @('-Harness', 'Codex', '-ConfigPath', $discoveredPath, '-DiscoveryFixture', $discoveryFixture, '-RoutingRoot', $catalogs, '-OutputFormat', 'Json')
-    $refresh = Invoke-SDARoutingProcess $resolver (@('-Action', 'Refresh') + $discoveryArguments) -ReadOnly $false
+    $refresh = Invoke-SDARoutingProcess $resolver (@('-Action', 'Refresh') + $discoveryArguments) -ReadOnly $false -HarnessFixtureDirectory $fixtureBin
     Assert-SDARouting ($refresh.Code -eq 0) "fixture-only stable discovery: $($refresh.Error)"
     $discovered = Get-Content -LiteralPath $discoveredPath -Raw | ConvertFrom-Json -AsHashtable
     Assert-SDARouting ($discovered.schemaVersion -eq '2.0' -and $discovered.catalogSha256 -match '^[0-9a-f]{64}$') 'schema 2 local fixture and catalog binding'
-    $discoveryStatus = Invoke-SDARoutingProcess $resolver (@('-Action', 'Status') + $discoveryArguments)
+    Assert-SDARouting ($discovered.harness.version -ceq 'codex-fixture 0.0.0') 'only the owned version double was queried'
+    $discoveryStatus = Invoke-SDARoutingProcess $resolver (@('-Action', 'Status') + $discoveryArguments) -HarnessFixtureDirectory $fixtureBin
     Assert-SDARouting ($discoveryStatus.Code -eq 0) "stable resolver status: $($discoveryStatus.Error)"
     "PASS: $assertions stable Assurance routing assertions; no model processes or personal profiles."
 } finally {

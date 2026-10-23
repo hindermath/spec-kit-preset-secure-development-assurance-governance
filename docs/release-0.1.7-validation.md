@@ -53,12 +53,16 @@ die isolierte Komposition mit Model Routing v0.1.5 (Commit
 (`8026572a37f967d2603f8a942d5bfd1ccbf2dca2`). Beide Quellen sind unveränderlich
 gebunden. Nur synthetische Runner-Profile; keine Modellaufrufe. Fehlende
 Verträge, falsche Rollen und schwächere Überlagerungen werden geprüft.
+Ein eigenes Versions-Double beantwortet nur `--version`; auch eine lokal
+angemeldete Harness-CLI wird für die Fixture-Discovery nicht verwendet.
 Die bestehenden Assurance- und Agentenflächen-Regressionen bleiben Pflicht.
 Tatsächliche Ergebnisse und native Plattformgrenzen werden im PR dokumentiert.
 
 *The routing test checks coverage, registration, roles and isolated composition
 against the immutable stable commits above. Only synthetic profiles are used;
-no model calls. Missing contracts, wrong roles and weaker overlaps are tested.
+no model calls. An owned version-only double replaces even the native harness
+version query; fixture discovery never uses a signed-in CLI. Missing contracts,
+wrong roles and weaker overlaps are tested.
 Existing Assurance and installed-surface regressions remain required. The PR
 records actual results and native platform limits, not presumed passes.*
 
