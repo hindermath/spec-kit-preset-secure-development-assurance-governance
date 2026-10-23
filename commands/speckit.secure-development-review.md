@@ -4,6 +4,21 @@ description: Ein benanntes Secure-Development-Gate mit begrenzter Evidence-Autor
 
 # Secure Development Review
 
+## Routing / Routing
+
+Im bestehenden Model-Routing gilt `frontier-reasoning` für die fachliche
+Bewertung des benannten Gates. Der Vertrag steht in `model-routing.json`.
+Der direkte Validator bleibt eine modellfreie Skriptprüfung; sein Erfolg ist
+keine fachliche Bewertung oder menschliche Freigabe. Nur ausdrücklich
+autorisierte Review-Evidence darf geändert werden. Fehlende Verträge oder
+unpassende lokale Profile blockieren ohne schwächere Ersatzrolle.
+
+*Stable routing uses frontier-reasoning for the named gate's assessment.
+The contract is in model-routing.json. The direct validator remains model-free;
+its success is neither an assessment nor human approval. Edit only explicitly
+authorized review evidence. Missing contracts or unsuitable local profiles
+block without a weaker fallback role.*
+
 Syntax:
 
 ~~~text
