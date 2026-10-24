@@ -1,18 +1,22 @@
 # Secure Development Assurance Governance
 
-<!-- current-package: 0.1.7 -->
+<!-- current-package: 0.1.8 -->
+
+Paketkennung: **v0.1.8**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.1.8-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+
+<span lang="en">Package identity: v0.1.8. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](docs/release-0.1.7-validation.md).
 
-Der spätere Dokumentationsnachlauf auf main ändert das bestehende Tag-ZIP nicht.
+Der unten verlinkte Basispaket-Nachweis bleibt historisch; dieses Paket nimmt die Quellenkorrekturen als neue Version auf.
 
-<span lang="en">The later main-branch documentation follow-up does not change the existing tag archive.</span>
+<span lang="en">The linked base-package evidence remains historical; this package includes the source corrections as a new version.</span>
 
 **Leserpfad / Reader path:** [Deutsch: Einstieg, Begriffe und Fehlerhilfe](docs/user-guide.md) · [English: start, terms and troubleshooting](docs/user-guide.EN.md).
 
-Veröffentlichtes Paket **v0.1.7**. Der [Release-Stand](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/releases) wird getrennt geprüft; ein Commit auf main ist noch keine Veröffentlichung oder Installation.
+Historisches Basispaket **v0.1.7**. Der [Release-Stand](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/releases) wird getrennt geprüft; ein Commit auf main ist noch keine Veröffentlichung oder Installation.
 
-*Published package v0.1.7. The release page records actual publication separately; a main-branch commit is not publication or installation.*
+*Historical base package v0.1.7. The release page records actual publication separately; a main-branch commit is not publication or installation.*
 
 
 Patch **0.1.7** ergänzt den fehlenden stabilen Command-zu-Rolle-Vertrag.
@@ -22,9 +26,9 @@ Validatoren, vier Gates und menschliche Entscheidungsrechte bleiben unverändert
 *Patch 0.1.7 adds the missing stable command-to-role contract. Validators, the four
 gates and human decision authority remain unchanged.*
 
-Version: `0.1.7`
+Version: `0.1.8`
 
-Status: Paket veröffentlicht; Dokumentationsnachlauf zur Sichtung / package published; documentation follow-up awaiting review
+Status: Veröffentlichung über die Release-Seite prüfen / verify publication on the release page
 
 Priorität: `15`
 
@@ -266,7 +270,7 @@ preset between them without granting execution or approval authority.*
 ### Veröffentlichtes Tag-ZIP
 
 ~~~bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.7.zip --priority 15
+specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.8.zip --priority 15
 
 specify preset info secure-development-assurance-governance
 specify preset resolve secure-development-evidence-contract
