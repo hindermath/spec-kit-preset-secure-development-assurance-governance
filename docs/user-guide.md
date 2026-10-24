@@ -1,14 +1,18 @@
 # Nutzungsleitfaden: secure-development-assurance-governance
 
-<!-- current-package: 0.1.7 -->
+<!-- current-package: 0.1.8 -->
+
+Paketkennung: **v0.1.8**. [Vorbereitung und Veröffentlichungsgrenze](release-0.1.8-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+
+<span lang="en">Package identity: v0.1.8. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.7-validation.md).
 
-Der spätere Dokumentationsnachlauf auf main ändert das bestehende Tag-ZIP nicht.
+Der unten verlinkte Basispaket-Nachweis bleibt historisch; dieses Paket nimmt die Quellenkorrekturen als neue Version auf.
 
 [English](user-guide.EN.md) · [Preset-Referenz](../README.md)
 
-Veröffentlichtes Paket **v0.1.7**. Den tatsächlich veröffentlichten Stand auf der [Release-Seite](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/releases) prüfen. Dieser Leitfaden erteilt keine Merge-, Release- oder Projektfreigabe.
+Historisches Basispaket **v0.1.7**. Den tatsächlich veröffentlichten Stand auf der [Release-Seite](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/releases) prüfen. Dieser Leitfaden erteilt keine Merge-, Release- oder Projektfreigabe.
 
 Inhalt: [Start](#start) · [Beispiel](#example) · [Begriffe](#terms) · [Routing](#routing) · [Fehlerhilfe](#help) · [Referenzen](#references)
 
