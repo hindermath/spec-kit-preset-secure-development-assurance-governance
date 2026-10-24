@@ -2,23 +2,29 @@
 
 <!-- current-package: 0.1.7 -->
 
+[Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](docs/release-0.1.7-validation.md).
+
+Der spätere Dokumentationsnachlauf auf main ändert das bestehende Tag-ZIP nicht.
+
+<span lang="en">The later main-branch documentation follow-up does not change the existing tag archive.</span>
+
 **Leserpfad / Reader path:** [Deutsch: Einstieg, Begriffe und Fehlerhilfe](docs/user-guide.md) · [English: start, terms and troubleshooting](docs/user-guide.EN.md).
 
-Quellkandidat **v0.1.7**. Der [Release-Stand](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/releases) wird getrennt geprüft; ein Commit auf main ist noch keine Veröffentlichung oder Installation.
+Veröffentlichtes Paket **v0.1.7**. Der [Release-Stand](https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/releases) wird getrennt geprüft; ein Commit auf main ist noch keine Veröffentlichung oder Installation.
 
-*Source candidate v0.1.7. The release page records actual publication separately; a main-branch commit is not publication or installation.*
+*Published package v0.1.7. The release page records actual publication separately; a main-branch commit is not publication or installation.*
 
 
 Patch **0.1.7** ergänzt den fehlenden stabilen Command-zu-Rolle-Vertrag.
 Validatoren, vier Gates und menschliche Entscheidungsrechte bleiben unverändert.
-[Release-Vorbereitung / Release preparation](docs/release-0.1.7-validation.md).
+[Release-Nachweis / Release evidence](docs/release-0.1.7-validation.md).
 
 *Patch 0.1.7 adds the missing stable command-to-role contract. Validators, the four
 gates and human decision authority remain unchanged.*
 
 Version: `0.1.7`
 
-Status: Quellkandidat zur Sichtung / source candidate for review
+Status: Paket veröffentlicht; Dokumentationsnachlauf zur Sichtung / package published; documentation follow-up awaiting review
 
 Priorität: `15`
 
