@@ -261,11 +261,29 @@ function Test-SDAAcceptedRisks {
 
 function Test-SDAClaimBoundary {
     param([Parameter(Mandatory)][string]$Path)
-    $text = Get-Content -LiteralPath $Path -Raw
     $pattern = '(?i)(^|[^a-z0-9])(c5[ -]?(compliant|certified|conformant|ready)|c5[- ]?(konform|zertifiziert|testatbereit)|iso[ /-]?[0-9]+[ -]?(compliant|certified|konform|zertifiziert)|testatbereit|attestation[- ]ready)([^a-z0-9]|$)'
-    if ($text -match $pattern) {
-        Stop-SDAValidation "Unzulässige Zertifizierungs-, Konformitäts- oder Testatbehauptung: ${Path}"
+    $document = Read-SDAJson $Path
+    function Assert-SDAClaimText {
+        param($Value)
+        if ($Value -is [string]) {
+            if ([regex]::IsMatch($Value, $pattern, [Text.RegularExpressions.RegexOptions]::CultureInvariant)) {
+                Stop-SDAValidation "Unzulässige Zertifizierungs-, Konformitäts- oder Testatbehauptung: ${Path}"
+            }
+        } elseif ($Value -is [System.Collections.IDictionary]) {
+            foreach ($key in $Value.Keys) {
+                Assert-SDAClaimText ([string]$key)
+                Assert-SDAClaimText $Value[$key]
+            }
+        } elseif ($Value -is [pscustomobject]) {
+            foreach ($property in $Value.PSObject.Properties) {
+                Assert-SDAClaimText $property.Name
+                Assert-SDAClaimText $property.Value
+            }
+        } elseif ($Value -is [System.Collections.IEnumerable]) {
+            foreach ($entry in $Value) { Assert-SDAClaimText $entry }
+        }
     }
+    Assert-SDAClaimText $document
 }
 
 function Test-SDAGateFile {

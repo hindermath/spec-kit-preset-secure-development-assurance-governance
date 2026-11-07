@@ -167,9 +167,15 @@ validate_accepted_risks() {
 
 validate_claim_boundary() {
   local file="$1"
-  if "${SDA_JQ[@]}" -r '.. | strings' "$file" |
-      grep -Eiq '(^|[^[:alnum:]])(c5[ -]?(compliant|certified|conformant|ready)|c5[- ]?(konform|zertifiziert|testatbereit)|iso[ /-]?[0-9]+[ -]?(compliant|certified|konform|zertifiziert)|testatbereit|attestation[- ]ready)([^[:alnum:]]|$)'; then
+  local pattern='(^|[^a-z0-9])(c5[ -]?(compliant|certified|conformant|ready)|c5[- ]?(konform|zertifiziert|testatbereit)|iso[ /-]?[0-9]+[ -]?(compliant|certified|konform|zertifiziert)|testatbereit|attestation[- ]ready)([^a-z0-9]|$)'
+  # Let jq inspect decoded JSON values and keys in one process. A grep pipe can
+  # close early and make jq fail with SIGPIPE under pipefail after a real match.
+  if "${SDA_JQ[@]}" -e --arg pattern "$pattern" \
+      'any(((.. | strings), (.. | objects | keys[])); test($pattern; "i"))' "$file" >/dev/null; then
     die "Unzulässige Zertifizierungs-, Konformitäts- oder Testatbehauptung: $file"
+  else
+    local status=$?
+    [[ $status -eq 1 ]] || die "Claim-Prüfung fehlgeschlagen: $file"
   fi
 }
 

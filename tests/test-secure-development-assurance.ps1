@@ -873,6 +873,22 @@ try {
     Invoke-SDANegativeCase {
         $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
         $delta = Read-SDATestJson $deltaPath
+        $delta.review.residualRisk = 'C5 certified'
+        Write-SDATestJson $deltaPath $delta
+        $text = [IO.File]::ReadAllText($deltaPath).Replace('C5 certified', 'C5\u0020certified')
+        Write-SDATestText $deltaPath $text
+    } 'Unzulässige Zertifizierungs-, Konformitäts- oder Testatbehauptung'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
+        $delta.review.residualRisk = 'C5 certified ' + ('x' * 100000)
+        Write-SDATestJson $deltaPath $delta
+    } 'Unzulässige Zertifizierungs-, Konformitäts- oder Testatbehauptung'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
         $delta.outcome = 'ReadyWithAcceptedRisks'
         $delta | Add-Member acceptedRisks @([ordered]@{
             id = 'RISK-001'
