@@ -835,6 +835,28 @@ exec "$BASH" "$validator" status "$5"
     'PASS: binary jq routing, legacy LF compatibility and fail-closed CRLF/error probes'
 }
 
+function Test-SDAConfinedBaselineEvidence {
+    $outsideRoot = "${temporaryRoot}-outside"
+    [void](New-Item -ItemType Directory -Path $outsideRoot -Force)
+    try {
+        foreach ($relative in @('docs/secure-development/baseline-manifest.json', 'docs/secure-development/related.md')) {
+            New-SDATestFixture
+            $inside = Join-Path $temporaryRoot $relative
+            $outside = Join-Path $outsideRoot ([IO.Path]::GetFileName($relative))
+            Copy-Item -LiteralPath $inside -Destination $outside -Force
+            Remove-Item -LiteralPath $inside -Force
+            [void](New-Item -ItemType SymbolicLink -Path $inside -Target $outside)
+            $pair = Invoke-SDATestPair
+            Assert-SDATest ($pair.Bash.ExitCode -eq 2 -and $pair.PowerShell.ExitCode -eq 2) `
+                "External baseline evidence symlink was accepted: $relative"
+            Assert-SDATest ($pair.Bash.StdErr -match 'verlaesst das Repository') `
+                "Bash rejected external baseline evidence for an unrelated reason: $relative"
+        }
+    } finally {
+        Remove-Item -LiteralPath $outsideRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 try {
     foreach ($command in @('bash', 'pwsh', 'jq')) {
         if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
@@ -846,6 +868,7 @@ try {
     Test-SDAContextAndRiskTypes
     Test-SDAAcceptedRiskIds
     Test-SDAAcceptedRiskBinding
+    Test-SDAConfinedBaselineEvidence
     New-SDATestFixture
     Test-SDATestSnapshot
     $before = Get-SDATestSnapshot $temporaryRoot

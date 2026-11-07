@@ -53,6 +53,15 @@ validate_relative_path() {
   esac
 }
 
+resolve_confined_file() {
+  local path="$1" root="$2" label="$3" physical_root physical_path
+  [[ -f "$path" ]] || die "$label fehlt: $path"
+  physical_root="$(realpath "$root")" || die "$label-Wurzel kann nicht aufgeloest werden: $root"
+  physical_path="$(realpath "$path")" || die "$label kann nicht aufgeloest werden: $path"
+  [[ "$physical_path" == "$physical_root/"* ]] || die "$label verlaesst das Repository: $path"
+  printf '%s\n' "$physical_path"
+}
+
 normalized_sha256() {
   local file="$1"
   # Native jq.exe kann normalisierte LF beim Ausgeben wieder in CRLF umwandeln.
@@ -323,8 +332,7 @@ validate_baseline_contract() {
   expected_manifest_hash="$(require_json_text "$baseline_file" '.baselineBinding.manifestNormalizedSha256' 'baselineBinding.manifestNormalizedSha256')"
   validate_relative_path "$manifest_path" 'baselineBinding.manifestPath'
   [[ "$expected_manifest_hash" =~ ^[0-9a-f]{64}$ ]] || die 'baselineBinding.manifestNormalizedSha256 ist ungültig.'
-  manifest_file="$PWD/$manifest_path"
-  [[ -f "$manifest_file" ]] || die "Baseline-Manifest fehlt: $manifest_path"
+  manifest_file="$(resolve_confined_file "$PWD/$manifest_path" "$PWD" 'Baseline-Manifest')"
   "${SDA_JQ[@]}" -e . "$manifest_file" >/dev/null || die "Baseline-Manifest ist kein gültiges JSON: $manifest_path"
   "${SDA_JQ[@]}" -e '.schemaVersion == 1 and (.checklists | type == "array" and length == 12)' "$manifest_file" >/dev/null ||
     die "Baseline-Manifest benötigt Schema 1 und genau zwölf Checklisten: $manifest_path"
@@ -359,8 +367,7 @@ validate_baseline_contract() {
     bound_hash="$("${SDA_JQ[@]}" -r --arg path "$relative" '.baselineBinding.documentBindings[] | select(.path == $path) | .normalizedSha256 // empty' "$baseline_file")"
     [[ "$bound_version" == "$version" ]] || die "Versionsbindung stimmt nicht: $relative"
     [[ "$bound_hash" =~ ^[0-9a-f]{64}$ ]] || die "Hashbindung ist ungültig: $relative"
-    full_path="$(dirname "$manifest_file")/$relative"
-    [[ -f "$full_path" ]] || die "Kontrolliertes Dokument fehlt: $relative"
+    full_path="$(resolve_confined_file "$(dirname "$manifest_file")/$relative" "$(dirname "$manifest_file")" 'Kontrolliertes Dokument')"
     actual_hash="$(normalized_sha256 "$full_path")"
     [[ "$actual_hash" == "$bound_hash" ]] || die "Dokument-Hashdrift: $relative"
     validate_document_version "$full_path" "$relative" "$version" "$kind"
@@ -379,7 +386,7 @@ validate_baseline_contract() {
   TEMP_FILES+=("$ids_file" "$compendium_ids_file")
   while IFS=$'\t' read -r id relative _version; do
     local checklist_file
-    checklist_file="$(dirname "$manifest_file")/$relative"
+    checklist_file="$(resolve_confined_file "$(dirname "$manifest_file")/$relative" "$(dirname "$manifest_file")" 'Checkliste')"
     validate_active_metadata "$checklist_file" "$relative" '**Dokument-ID / Document ID:**' "**Dokument-ID / Document ID:** $id"
     grep -Eo '^#### CL-[0-9]{2}-[0-9]{2}:' "$checklist_file" | sed 's/^#### //; s/:$//' >> "$ids_file"
   done < <("${SDA_JQ[@]}" -r '.checklists[] | [.id,.path,.version] | @tsv' "$manifest_file")
@@ -391,14 +398,16 @@ validate_baseline_contract() {
   grep -Fxq 'CL-02-13' "$ids_file" || die 'Der projektgeführte Prüfpunkt CL-02-13 Cloud-Compliance-Assurance fehlt.'
   local compendium_path
   compendium_path="$("${SDA_JQ[@]}" -r '.compendium.path' "$manifest_file")"
-  grep -Eo '^#### CL-[0-9]{2}-[0-9]{2}:' "$(dirname "$manifest_file")/$compendium_path" | sed 's/^#### //; s/:$//' > "$compendium_ids_file"
+  local compendium_file
+  compendium_file="$(resolve_confined_file "$(dirname "$manifest_file")/$compendium_path" "$(dirname "$manifest_file")" 'Sammelband')"
+  grep -Eo '^#### CL-[0-9]{2}-[0-9]{2}:' "$compendium_file" | sed 's/^#### //; s/:$//' > "$compendium_ids_file"
   [[ "$(LC_ALL=C sort "$ids_file")" == "$(LC_ALL=C sort "$compendium_ids_file")" ]] || die 'Sammelbanddrift gegenüber den zwölf Einzelchecklisten.'
-  validate_active_metadata "$(dirname "$manifest_file")/$compendium_path" "$compendium_path" '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** $baseline_version" '' 'embedded-baseline'
+  validate_active_metadata "$compendium_file" "$compendium_path" '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** $baseline_version" '' 'embedded-baseline'
   rm -f "$ids_file" "$compendium_ids_file"
 
   while IFS= read -r relative; do
     validate_relative_path "$relative" 'Verwalteter Referenzpfad'
-    [[ -f "$(dirname "$manifest_file")/$relative" ]] || die "Verwaltete Referenz fehlt: $relative"
+    resolve_confined_file "$(dirname "$manifest_file")/$relative" "$(dirname "$manifest_file")" 'Verwaltete Referenz' >/dev/null
   done < <("${SDA_JQ[@]}" -r '(.managedBinaryFiles + .managedReferenceFiles)[]' "$manifest_file")
 }
 

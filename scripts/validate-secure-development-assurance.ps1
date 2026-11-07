@@ -134,6 +134,43 @@ function Test-SDARelativePath {
     }
 }
 
+function Resolve-SDAPhysicalPath {
+    param([Parameter(Mandatory)][string]$Path)
+    $full = [IO.Path]::GetFullPath($Path)
+    $root = [IO.Path]::GetPathRoot($full)
+    $current = $root
+    foreach ($segment in $full.Substring($root.Length).Split([char[]]@('/', '\'), [StringSplitOptions]::RemoveEmptyEntries)) {
+        $current = [IO.Path]::Combine($current, $segment)
+        $entry = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+        if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            $resolved = $entry.ResolveLinkTarget($true)
+            if ($null -eq $resolved) { throw "Symlink kann nicht aufgeloest werden: $current" }
+            $current = $resolved.FullName
+        }
+    }
+    return [IO.Path]::GetFullPath($current)
+}
+
+function Resolve-SDAConfinedFile {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Root,
+        [Parameter(Mandatory)][string]$Label
+    )
+    try {
+        $physicalRoot = Resolve-SDAPhysicalPath $Root
+        $physicalPath = Resolve-SDAPhysicalPath $Path
+        $comparison = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+        $prefix = $physicalRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+        if (-not $physicalPath.StartsWith($prefix, $comparison) -or -not [IO.File]::Exists($physicalPath)) {
+            Stop-SDAValidation "${Label} verlaesst das Repository oder fehlt: ${Path}"
+        }
+        return $physicalPath
+    } catch {
+        Stop-SDAValidation "${Label} kann nicht sicher gelesen werden: ${Path}: $($_.Exception.Message)"
+    }
+}
+
 function Get-SDANormalizedSha256 {
     param([Parameter(Mandatory)][string]$Path)
     $utf8 = [Text.UTF8Encoding]::new($false, $true)
@@ -465,7 +502,7 @@ function Test-SDABaselineContract {
     if ($manifestHash -notmatch '^[0-9a-f]{64}$') {
         Stop-SDAValidation 'baselineBinding.manifestNormalizedSha256 ist ungültig.'
     }
-    $fullManifestPath = Join-Path $script:RepositoryRoot $manifestPath
+    $fullManifestPath = Resolve-SDAConfinedFile (Join-Path $script:RepositoryRoot $manifestPath) $script:RepositoryRoot 'Baseline-Manifest'
     $manifest = Read-SDAJson $fullManifestPath
     if ([int](Get-SDAProperty $manifest 'schemaVersion' 'manifest.schemaVersion') -ne 1 -or
         @($manifest.checklists).Count -ne 12) {
@@ -522,10 +559,7 @@ function Test-SDABaselineContract {
         if ($boundHash -notmatch '^[0-9a-f]{64}$') {
             Stop-SDAValidation "Hashbindung ist ungültig: $($document.path)"
         }
-        $fullPath = Join-Path $docRoot $document.path
-        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
-            Stop-SDAValidation "Kontrolliertes Dokument fehlt: $($document.path)"
-        }
+        $fullPath = Resolve-SDAConfinedFile (Join-Path $docRoot $document.path) $docRoot 'Kontrolliertes Dokument'
         if ((Get-SDANormalizedSha256 $fullPath) -ne $boundHash) {
             Stop-SDAValidation "Dokument-Hashdrift: $($document.path)"
         }
@@ -534,7 +568,7 @@ function Test-SDABaselineContract {
 
     $itemIds = [Collections.Generic.List[string]]::new()
     foreach ($checklist in @($manifest.checklists)) {
-        $path = Join-Path $docRoot $checklist.path
+        $path = Resolve-SDAConfinedFile (Join-Path $docRoot $checklist.path) $docRoot 'Checkliste'
         $text = Get-Content -LiteralPath $path -Raw
         Test-SDAActiveMetadataField $path $checklist.path '**Dokument-ID / Document ID:**' "**Dokument-ID / Document ID:** $($checklist.id)"
         foreach ($match in [regex]::Matches($text, '(?m)^#### (CL-[0-9]{2}-[0-9]{2}):')) {
@@ -550,7 +584,7 @@ function Test-SDABaselineContract {
     if ('CL-02-13' -notin $itemIds) {
         Stop-SDAValidation 'Der projektgeführte Prüfpunkt CL-02-13 Cloud-Compliance-Assurance fehlt.'
     }
-    $compendiumPath = Join-Path $docRoot $manifest.compendium.path
+    $compendiumPath = Resolve-SDAConfinedFile (Join-Path $docRoot $manifest.compendium.path) $docRoot 'Sammelband'
     $compendiumText = Get-Content -LiteralPath $compendiumPath -Raw
     $compendiumIds = @([regex]::Matches($compendiumText, '(?m)^#### (CL-[0-9]{2}-[0-9]{2}):') | ForEach-Object { $_.Groups[1].Value })
     if ((($itemIds | Sort-Object) -join '|') -ne (($compendiumIds | Sort-Object) -join '|')) {
@@ -559,9 +593,7 @@ function Test-SDABaselineContract {
     Test-SDAActiveMetadataField $compendiumPath $manifest.compendium.path '**Baseline-Version / Baseline version:**' "**Baseline-Version / Baseline version:** ${baselineVersion}" -AllowEmbeddedBaseline
     foreach ($relative in @($manifest.managedBinaryFiles) + @($manifest.managedReferenceFiles)) {
         Test-SDARelativePath $relative 'Verwalteter Referenzpfad'
-        if (-not (Test-Path -LiteralPath (Join-Path $docRoot $relative) -PathType Leaf)) {
-            Stop-SDAValidation "Verwaltete Referenz fehlt: ${relative}"
-        }
+        $null = Resolve-SDAConfinedFile (Join-Path $docRoot $relative) $docRoot 'Verwaltete Referenz'
     }
 }
 
