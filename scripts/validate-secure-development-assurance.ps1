@@ -257,8 +257,26 @@ function Test-SDAAcceptedRisks {
             Stop-SDAValidation 'acceptedRisks.id muss einzelner Text sein.'
         }
         $id = Get-SDAText $risk 'id' 'acceptedRisks.id'
-        foreach ($field in @('owner', 'reviewer', 'reviewedAt', 'reviewDue', 'residualRisk', 'reevaluationTrigger')) {
+        foreach ($field in @('owner', 'reviewer', 'reviewedAt', 'reviewDue', 'scope', 'rationale', 'residualRisk', 'reevaluationTrigger')) {
             $null = Get-SDAText $risk $field "acceptedRisks[${id}].${field}"
+        }
+        $reviewedAt = Get-SDAText $risk 'reviewedAt' "acceptedRisks[${id}].reviewedAt"
+        $reviewDue = Get-SDAText $risk 'reviewDue' "acceptedRisks[${id}].reviewDue"
+        if ($reviewedAt -cnotmatch '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$') {
+            Stop-SDAValidation "acceptedRisks[${id}].reviewedAt ist kein ISO-8601-Zeitpunkt: ${Path}"
+        }
+        $parsedDateTime = [DateTimeOffset]::MinValue
+        if (-not [DateTimeOffset]::TryParse($reviewedAt, [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::RoundtripKind, [ref]$parsedDateTime)) {
+            Stop-SDAValidation "acceptedRisks[${id}].reviewedAt ist kein ISO-8601-Zeitpunkt: ${Path}"
+        }
+        $parsedDue = [DateTime]::MinValue
+        if (-not [DateTime]::TryParseExact($reviewDue, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::None, [ref]$parsedDue)) {
+            Stop-SDAValidation "acceptedRisks[${id}].reviewDue ist kein ISO-Datum: ${Path}"
+        }
+        if ($parsedDue.Date -lt [DateTime]::UtcNow.Date) {
+            Stop-SDAValidation "Akzeptiertes Risiko ist abgelaufen (${reviewDue}): ${Path}"
         }
     }
 }
@@ -329,6 +347,24 @@ function Test-SDAGateFile {
         $risks = @($document.acceptedRisks)
         if ($risks.Count -eq 0) {
             Stop-SDAValidation "ReadyWithAcceptedRisks benötigt mindestens ein akzeptiertes Risiko: ${Path}"
+        }
+        $unresolved = @($document.assessments | Where-Object {
+            $_.applicability -eq 'Open' -or
+            ($_.applicability -eq 'Applicable' -and $_.implementation -ne 'Fulfilled')
+        })
+        foreach ($assessment in $unresolved) {
+            $covered = $false
+            foreach ($risk in $risks) {
+                $idsProperty = $risk.PSObject.Properties['assessmentIds']
+                if ($idsProperty -and $idsProperty.Value -is [Array] -and
+                    @($idsProperty.Value | Where-Object { $_ -is [string] -and $_ -ceq $assessment.id }).Count -gt 0) {
+                    $covered = $true
+                    break
+                }
+            }
+            if (-not $covered) {
+                Stop-SDAValidation "ReadyWithAcceptedRisks benötigt ein zugeordnetes Risiko für Assessment '$($assessment.id)': ${Path}"
+            }
         }
     }
     if ((Get-SDAText $document 'externalComparisonBoundary' 'externalComparisonBoundary') -ne $script:ExternalComparisonBoundary) {

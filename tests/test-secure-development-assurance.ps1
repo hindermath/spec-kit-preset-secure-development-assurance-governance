@@ -478,6 +478,7 @@ function Test-SDAAcceptedRiskIds {
             id = " RISK-$gate-ä "
             owner = 'Fixture owner'; reviewer = 'Fixture reviewer'
             reviewedAt = '2099-01-01T00:00:00Z'; reviewDue = '2099-12-31'
+            scope = 'Fixture assessment scope'; rationale = 'Explicit fixture acceptance decision.'
             residualRisk = 'Fixture risk'; reevaluationTrigger = 'Any fixture change.'
         })
         if ($gate -eq 'delta') { $document.outcome = 'ReadyWithAcceptedRisks' }
@@ -560,6 +561,52 @@ function Test-SDAAcceptedRiskIds {
     Write-SDATestText $deltaPath $validDeltaText
 
     'PASS: scalar nonblank accepted-risk IDs, single JSON roots, status/all gate reviews and unchanged evidence'
+}
+
+function Test-SDAAcceptedRiskBinding {
+    New-SDATestFixture
+    $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+    $delta = Read-SDATestJson $deltaPath
+    $delta.assessments[0].implementation = 'Not Fulfilled'
+    $delta.assessments[0] | Add-Member nextAction 'Resolve fixture finding'
+    $delta.assessments[0] | Add-Member owner 'Fixture owner'
+    $delta.assessments[0] | Add-Member dueAt '2099-12-31'
+    $delta.outcome = 'ReadyWithAcceptedRisks'
+    $delta | Add-Member acceptedRisks @([ordered]@{
+        id = 'RISK-001'; owner = 'Fixture owner'; reviewer = 'Fixture reviewer'
+        reviewedAt = '2026-11-01T00:00:00Z'; reviewDue = '2099-12-31'
+        scope = 'TEST-001 in delta'; rationale = 'Explicit fixture risk decision.'
+        residualRisk = 'Bounded fixture risk'; reevaluationTrigger = 'Any fixture change.'
+        assessmentIds = @('TEST-001')
+    })
+    Write-SDATestJson $deltaPath $delta
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 0 -and $pair.PowerShell.ExitCode -eq 0) 'Bound accepted risk was rejected.'
+
+    $delta.acceptedRisks[0].assessmentIds = @('UNRELATED-001')
+    Write-SDATestJson $deltaPath $delta
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 2 -and $pair.PowerShell.ExitCode -eq 2) 'Unrelated risk covered an unresolved assessment.'
+
+    $delta.acceptedRisks[0].assessmentIds = @('TEST-001')
+    foreach ($mutation in @(
+        @{ Field = 'scope'; Value = '' },
+        @{ Field = 'rationale'; Value = '' },
+        @{ Field = 'reviewDue'; Value = '2020-01-01' },
+        @{ Field = 'reviewedAt'; Value = 'not-a-date' },
+        @{ Field = 'reviewedAt'; Value = '2026-11-01T00:00:00+14:01' }
+    )) {
+        $original = $delta.acceptedRisks[0].($mutation.Field)
+        $delta.acceptedRisks[0].($mutation.Field) = $mutation.Value
+        Write-SDATestJson $deltaPath $delta
+        Update-SDATestBindings
+        $pair = Invoke-SDATestPair
+        Assert-SDATest ($pair.Bash.ExitCode -eq 2 -and $pair.PowerShell.ExitCode -eq 2) `
+            "Invalid accepted risk $($mutation.Field) was accepted."
+        $delta.acceptedRisks[0].($mutation.Field) = $original
+    }
 }
 
 function Test-SDAContextAndRiskTypes {
@@ -798,6 +845,7 @@ try {
     Test-SDAActiveMetadata
     Test-SDAContextAndRiskTypes
     Test-SDAAcceptedRiskIds
+    Test-SDAAcceptedRiskBinding
     New-SDATestFixture
     Test-SDATestSnapshot
     $before = Get-SDATestSnapshot $temporaryRoot

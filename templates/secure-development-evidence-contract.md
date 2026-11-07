@@ -171,7 +171,11 @@ Ein einzelnes Risiko steht in `[{...}]`, nicht in `{...}`.
 `null`, boolesche Werte, Zahlen und Zeichenketten sind unzulässig.
 Ein leeres Array ist zulässig, jedoch nicht bei `ReadyWithAcceptedRisks`.
 Fehlende optionale `acceptedRisks` bleiben bei anderen Ergebnissen zulässig.
-Die vorhandenen Pflichtfelder jedes Risikos gelten unverändert.
+Die bisherigen Pflichtfelder jedes Risikos bleiben gültig.
+Jedes Risiko benötigt zusätzlich `scope` und `rationale`; `reviewDue` muss ein
+gültiges, noch nicht abgelaufenes UTC-Datum sein. Bei `ReadyWithAcceptedRisks`
+muss jeder offene oder nicht erfüllte Pflichtpunkt über `assessmentIds` eines
+akzeptierten Risikos ausdrücklich zugeordnet sein.
 
 *From v0.1.3, review requires exactly one dated directory with the full,
 case-sensitive context ID. Suffix matches and duplicate dated contexts are
@@ -181,8 +185,11 @@ Clarify the intended context before retrying; never rename or approve evidence
 merely to satisfy validation. When present, acceptedRisks must be a JSON
 array; one risk uses [{...}], not {...}. Null, booleans, numbers and strings
 are invalid. Empty arrays are allowed except for ReadyWithAcceptedRisks.
-Other outcomes may omit the optional field. Risk metadata requirements and
-all human decision boundaries remain unchanged.*
+Other outcomes may omit the optional field. Existing risk metadata and
+human decision boundaries remain valid.*
+Each risk also requires `scope` and `rationale`, with a valid, unexpired UTC
+`reviewDue`. For `ReadyWithAcceptedRisks`, every open or unfulfilled required
+assessment must appear in an accepted risk's `assessmentIds` array.
 
 ## Nutzungshilfe / Reader help
 

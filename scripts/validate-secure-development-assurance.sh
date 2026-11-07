@@ -169,6 +169,7 @@ validate_assessments() {
 
 validate_accepted_risks() {
   local file="$1"
+  local reviewed_at review_due parsed_due parsed_review_date today zone
   "${SDA_JQ[@]}" -e 'if has("acceptedRisks") then (.acceptedRisks | type == "array") else true end' "$file" >/dev/null ||
     die "acceptedRisks muss ein JSON-Array sein: $file"
   # Wie IsNullOrWhiteSpace in PowerShell: kein Typ-Coercing und dieselben Unicode-Leerzeichen.
@@ -177,8 +178,44 @@ validate_accepted_risks() {
     (.id? // null) | if type == "string" then
       test("[^\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]")
     else false end)' "$file" >/dev/null || die "acceptedRisks.id fehlt oder ist leer: $file"
-  "${SDA_JQ[@]}" -e '[(.acceptedRisks // [])[] | select((.owner // "") == "" or (.reviewer // "") == "" or (.reviewedAt // "") == "" or (.reviewDue // "") == "" or (.residualRisk // "") == "" or (.reevaluationTrigger // "") == "")] | length == 0' "$file" >/dev/null ||
-    die "Akzeptierte Risiken benötigen Owner, Reviewer, Reviewdatum, Restrisiko und Wiedervorlage: $file"
+  "${SDA_JQ[@]}" -e 'all((.acceptedRisks // [])[]; . as $risk |
+    all(["owner", "reviewer", "reviewedAt", "reviewDue", "scope", "rationale", "residualRisk", "reevaluationTrigger"][];
+      ($risk[.] | type) == "string" and
+      ($risk[.] | test("[^\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"))))' "$file" >/dev/null ||
+    die "Akzeptierte Risiken benötigen Owner, Reviewer, Reviewdatum, Scope, Begründung, Restrisiko und Wiedervorlage: $file"
+  while IFS=$'\t' read -r reviewed_at review_due; do
+    [[ "$reviewed_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$ ]] ||
+      die "acceptedRisks.reviewedAt ist kein ISO-8601-Zeitpunkt: $file"
+    if [[ "$(uname -s)" == Darwin ]]; then
+      parsed_review_date="$(date -u -j -f '%Y-%m-%d' "${reviewed_at:0:10}" '+%Y-%m-%d' 2>/dev/null)" ||
+        die "acceptedRisks.reviewedAt ist kein gueltiger Kalendertag: $file"
+    else
+      parsed_review_date="$(date -u -d "${reviewed_at:0:10}" '+%Y-%m-%d' 2>/dev/null)" ||
+        die "acceptedRisks.reviewedAt ist kein gueltiger Kalendertag: $file"
+    fi
+    [[ "$parsed_review_date" == "${reviewed_at:0:10}" ]] &&
+      (( 10#${reviewed_at:11:2} <= 23 && 10#${reviewed_at:14:2} <= 59 &&
+        10#${reviewed_at:17:2} <= 59 )) ||
+      die "acceptedRisks.reviewedAt ist kein gueltiger Zeitpunkt: $file"
+    if [[ "$reviewed_at" != *Z ]]; then
+      zone="${reviewed_at: -6}"
+      (( 10#${zone:1:2} <= 14 && 10#${zone:4:2} <= 59 &&
+        (10#${zone:1:2} < 14 || 10#${zone:4:2} == 0) )) ||
+        die "acceptedRisks.reviewedAt hat einen ungueltigen UTC-Offset: $file"
+    fi
+    [[ "$review_due" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || die "acceptedRisks.reviewDue ist kein ISO-Datum: $file"
+    if [[ "$(uname -s)" == Darwin ]]; then
+      parsed_due="$(date -u -j -f '%Y-%m-%d' "$review_due" '+%Y-%m-%d' 2>/dev/null)" ||
+        die "acceptedRisks.reviewDue ist kein ISO-Datum: $file"
+    else
+      parsed_due="$(date -u -d "$review_due" '+%Y-%m-%d' 2>/dev/null)" ||
+        die "acceptedRisks.reviewDue ist kein ISO-Datum: $file"
+    fi
+    [[ "$parsed_due" == "$review_due" ]] || die "acceptedRisks.reviewDue ist kein ISO-Datum: $file"
+    today="$(date -u +%Y-%m-%d)"
+    [[ "$review_due" > "$today" || "$review_due" == "$today" ]] ||
+      die "Akzeptiertes Risiko ist abgelaufen ($review_due): $file"
+  done < <("${SDA_JQ[@]}" -r '(.acceptedRisks // [])[] | [.reviewedAt, .reviewDue] | @tsv' "$file")
 }
 
 validate_claim_boundary() {
@@ -224,6 +261,10 @@ validate_gate_file() {
   if [[ "$outcome" == 'ReadyWithAcceptedRisks' ]]; then
     "${SDA_JQ[@]}" -e '.acceptedRisks | type == "array" and length > 0' "$file" >/dev/null ||
       die "ReadyWithAcceptedRisks benötigt mindestens ein akzeptiertes Risiko: $file"
+    "${SDA_JQ[@]}" -e '. as $doc |
+      all([.assessments[] | select(.applicability == "Open" or (.applicability == "Applicable" and .implementation != "Fulfilled")) | .id][];
+        . as $id | any($doc.acceptedRisks[]; (.assessmentIds? | type) == "array" and (.assessmentIds | index($id)) != null))' "$file" >/dev/null ||
+      die "ReadyWithAcceptedRisks benötigt ein zugeordnetes Risiko für jeden offenen Pflichtpunkt: $file"
   fi
   "${SDA_JQ[@]}" -e --arg boundary "$EXTERNAL_COMPARISON_BOUNDARY" '.externalComparisonBoundary == $boundary' "$file" >/dev/null ||
     die "Externe Vergleichsgrenze fehlt: $file"
