@@ -921,6 +921,27 @@ try {
     Invoke-SDANegativeCase {
         $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
         $delta = Read-SDATestJson $deltaPath
+        $delta.assessments[0].implementation = @{ malformed = $true }
+        Write-SDATestJson $deltaPath $delta
+    } 'Assessment-Felder sind ungueltig'
+
+    Invoke-SDANegativeCase {
+        $imagePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'image-impact.json')
+        $image = Read-SDATestJson $imagePath
+        $image.imageChecks.build = 42
+        Write-SDATestJson $imagePath $image
+    } 'Image-Impact-Nachweise sind unvollständig'
+
+    Invoke-SDANegativeCase {
+        $closurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+        $closure = Read-SDATestJson $closurePath
+        $closure.humanDecisions.technicalValidation = $null
+        Write-SDATestJson $closurePath $closure
+    } 'Getrennte Entscheidungsgrenzen fehlen'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
         $delta.review.residualRisk = 'C5 certified'
         Write-SDATestJson $deltaPath $delta
         $text = [IO.File]::ReadAllText($deltaPath).Replace('C5 certified', 'C5\u0020certified')

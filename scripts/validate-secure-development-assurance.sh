@@ -140,9 +140,17 @@ validate_review_metadata() {
 validate_assessments() {
   local file="$1"
   "${SDA_JQ[@]}" -e '.assessments | type == "array" and length > 0' "$file" >/dev/null || die "Assessments fehlen: $file"
+  "${SDA_JQ[@]}" -e 'all(.assessments[];
+    type == "object" and (.id | type == "string") and
+    (.applicability | type == "string") and
+    (.implementation | type == "string") and (.evidence | type == "string"))' "$file" >/dev/null ||
+    die "Assessment-Felder sind ungueltig: $file"
   local duplicate_ids
   duplicate_ids="$("${SDA_JQ[@]}" -r '.assessments[].id // empty' "$file" | LC_ALL=C sort | uniq -d)"
   [[ -z "$duplicate_ids" ]] || die "Doppelte Assessment-ID in $file: $duplicate_ids"
+  local rows
+  rows="$("${SDA_JQ[@]}" -r '.assessments[] | [(.id // ""),(.applicability // ""),(.implementation // ""),(.evidence // "")] | @tsv' "$file")" ||
+    die "Assessment-Zeilen koennen nicht gelesen werden: $file"
   while IFS=$'\t' read -r id applicability implementation evidence; do
     [[ -n "$id" ]] || die "Assessment-ID fehlt: $file"
     require_value "$applicability" 'Applicable N/A Open' "assessments[$id].applicability"
@@ -151,7 +159,7 @@ validate_assessments() {
       *) die "Unzulässiger Umsetzungswert '$implementation' in $file." ;;
     esac
     [[ -n "$evidence" ]] || die "Evidence fehlt für Assessment $id: $file"
-  done < <("${SDA_JQ[@]}" -r '.assessments[] | [(.id // ""),(.applicability // ""),(.implementation // ""),(.evidence // "")] | @tsv' "$file")
+  done <<< "$rows"
 
   "${SDA_JQ[@]}" -e '[.assessments[] | select(.applicability == "N/A") | select((.reason // "") == "" or (.reevaluationTrigger // "") == "")] | length == 0' "$file" >/dev/null ||
     die "N/A benötigt Begründung und Re-Evaluation-Trigger: $file"
@@ -355,11 +363,14 @@ validate_baseline_contract() {
 
 validate_image_impact() {
   local file="$1"
-  "${SDA_JQ[@]}" -e '.imageChecks | has("build") and has("compose") and has("toolchain") and has("ociDigest") and has("sbom") and has("secrets") and has("mounts") and has("network") and has("ci")' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e '.imageChecks | type == "object" and has("build") and has("compose") and has("toolchain") and has("ociDigest") and has("sbom") and has("secrets") and has("mounts") and has("network") and has("ci") and all(.[]; type == "string")' "$file" >/dev/null ||
     die 'Image-Impact-Nachweise sind unvollständig.'
+  local rows
+  rows="$("${SDA_JQ[@]}" -r '.imageChecks | to_entries[] | [.key, (.value | gsub(" "; "-"))] | @tsv' "$file")" ||
+    die 'Image-Impact-Zeilen koennen nicht gelesen werden.'
   while IFS=$'\t' read -r key value; do
     require_value "$value" 'Fulfilled Partly-Fulfilled Not-Fulfilled Not-Assessed N/A' "imageChecks.$key"
-  done < <("${SDA_JQ[@]}" -r '.imageChecks | to_entries[] | [.key, (.value | gsub(" "; "-"))] | @tsv' "$file")
+  done <<< "$rows"
   if [[ "$("${SDA_JQ[@]}" -r '.outcome' "$file")" == 'Ready' ]]; then
     "${SDA_JQ[@]}" -e '[.imageChecks[] | select(. != "Fulfilled" and . != "N/A")] | length == 0' "$file" >/dev/null ||
       die 'Ready ist bei offenen Image-Impact-Prüfungen unzulässig.'
@@ -370,12 +381,15 @@ validate_closure() {
   local file="$1"
   "${SDA_JQ[@]}" -e '(if has("nextAction") and .nextAction != null then .nextAction else "" end) | (type == "string" and (explode | all(. >= 32 and (. <= 126 or . >= 160) and . != 8232 and . != 8233)))' "$file" >/dev/null ||
     die 'nextAction enthält Steuerzeichen oder ist kein Text.'
-  "${SDA_JQ[@]}" -e '.humanDecisions | has("technicalValidation") and has("pilotAuthorization") and has("projectAcceptance") and has("generalRelease")' "$file" >/dev/null ||
+  "${SDA_JQ[@]}" -e '.humanDecisions | type == "object" and has("technicalValidation") and has("pilotAuthorization") and has("projectAcceptance") and has("generalRelease") and all(.[]; type == "object" and (.status | type == "string") and (.authority | type == "string") and (.evidence | type == "string"))' "$file" >/dev/null ||
     die 'Getrennte Entscheidungsgrenzen fehlen.'
+  local rows
+  rows="$("${SDA_JQ[@]}" -r '.humanDecisions | to_entries[] | [.key, (.value.status | gsub(" "; "-")), (.value.authority // ""), (.value.evidence // "")] | @tsv' "$file")" ||
+    die 'Entscheidungsgrenzen koennen nicht gelesen werden.'
   while IFS=$'\t' read -r key status authority evidence; do
     require_value "$status" 'Fulfilled Open Blocked Not-Assessed' "humanDecisions.$key.status"
     [[ -n "$authority" && -n "$evidence" ]] || die "Entscheidungsgrenze ist unvollständig: $key"
-  done < <("${SDA_JQ[@]}" -r '.humanDecisions | to_entries[] | [.key, (.value.status | gsub(" "; "-")), (.value.authority // ""), (.value.evidence // "")] | @tsv' "$file")
+  done <<< "$rows"
   local technical
   technical="$("${SDA_JQ[@]}" -r '.humanDecisions.technicalValidation.status' "$file")"
   for decision in pilotAuthorization projectAcceptance generalRelease; do
