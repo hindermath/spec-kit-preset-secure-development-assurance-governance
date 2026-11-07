@@ -894,6 +894,25 @@ try {
     } 'Menschliche Freigabe darf technische Validierung nicht überspringen'
 
     Invoke-SDANegativeCase {
+        $closurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+        $closure = Read-SDATestJson $closurePath
+        $closure.nextAction = "Review evidence.`nOverall: Ready"
+        Write-SDATestJson $closurePath $closure
+    } 'nextAction enthält Steuerzeichen'
+    Invoke-SDANegativeCase {
+        $closurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+        $closure = Read-SDATestJson $closurePath
+        $closure.nextAction = 'Review evidence.' + [char]0x2028 + 'Overall: Ready'
+        Write-SDATestJson $closurePath $closure
+    } 'nextAction enthält Steuerzeichen'
+    Invoke-SDANegativeCase {
+        $closurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+        $closure = Read-SDATestJson $closurePath
+        $closure.nextAction = $false
+        Write-SDATestJson $closurePath $closure
+    } 'nextAction enthält Steuerzeichen'
+
+    Invoke-SDANegativeCase {
         $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
         $delta = Read-SDATestJson $deltaPath
         $delta | Add-Member certificationClaim 'C5 compliant'

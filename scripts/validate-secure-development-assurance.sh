@@ -354,6 +354,8 @@ validate_image_impact() {
 
 validate_closure() {
   local file="$1"
+  "${SDA_JQ[@]}" -e '(if has("nextAction") and .nextAction != null then .nextAction else "" end) | (type == "string" and (explode | all(. >= 32 and (. <= 126 or . >= 160) and . != 8232 and . != 8233)))' "$file" >/dev/null ||
+    die 'nextAction enthält Steuerzeichen oder ist kein Text.'
   "${SDA_JQ[@]}" -e '.humanDecisions | has("technicalValidation") and has("pilotAuthorization") and has("projectAcceptance") and has("generalRelease")' "$file" >/dev/null ||
     die 'Getrennte Entscheidungsgrenzen fehlen.'
   while IFS=$'\t' read -r key status authority evidence; do

@@ -521,6 +521,12 @@ function Test-SDAImageImpact {
 
 function Test-SDAClosure {
     param([Parameter(Mandatory)][object]$Document)
+    $nextActionProperty = $Document.PSObject.Properties['nextAction']
+    if ($nextActionProperty -and $null -ne $nextActionProperty.Value -and
+        ($nextActionProperty.Value -isnot [string] -or
+         $nextActionProperty.Value -match '[\x00-\x1F\x7F-\x9F\u2028\u2029]')) {
+        Stop-SDAValidation 'nextAction enthält Steuerzeichen oder ist kein Text.'
+    }
     $decisions = Get-SDAProperty $Document 'humanDecisions' 'humanDecisions'
     foreach ($key in @('technicalValidation', 'pilotAuthorization', 'projectAcceptance', 'generalRelease')) {
         $decision = Get-SDAProperty $decisions $key "humanDecisions.${key}"
