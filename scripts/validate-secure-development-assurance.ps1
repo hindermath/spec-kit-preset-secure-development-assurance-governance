@@ -307,6 +307,9 @@ function Test-SDAAcceptedRisks {
                 [Globalization.DateTimeStyles]::RoundtripKind, [ref]$parsedDateTime)) {
             Stop-SDAValidation "acceptedRisks[${id}].reviewedAt ist kein ISO-8601-Zeitpunkt: ${Path}"
         }
+        if ($parsedDateTime -gt [DateTimeOffset]::UtcNow) {
+            Stop-SDAValidation "acceptedRisks[${id}].reviewedAt liegt in der Zukunft: ${Path}"
+        }
         $parsedDue = [DateTime]::MinValue
         if (-not [DateTime]::TryParseExact($reviewDue, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture,
                 [Globalization.DateTimeStyles]::None, [ref]$parsedDue)) {

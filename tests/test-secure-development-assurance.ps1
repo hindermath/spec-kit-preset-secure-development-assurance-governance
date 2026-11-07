@@ -20,6 +20,7 @@ $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('sda-' + [guid]::NewGuid(
 $contextRelative = 'docs/security/secure-development/2099-01-01-contract-test'
 $boundary = 'HOSK/GWDG: ExternalComparison only; never local evidence'
 $utf8 = [Text.UTF8Encoding]::new($false)
+$validRiskReviewedAt = [DateTimeOffset]::UtcNow.AddDays(-1).ToString('yyyy-MM-ddTHH:mm:ssZ')
 
 function Write-SDATestText {
     param(
@@ -477,7 +478,7 @@ function Test-SDAAcceptedRiskIds {
         $document | Add-Member acceptedRisks @([ordered]@{
             id = " RISK-$gate-ä "
             owner = 'Fixture owner'; reviewer = 'Fixture reviewer'
-            reviewedAt = '2099-01-01T00:00:00Z'; reviewDue = '2099-12-31'
+            reviewedAt = $validRiskReviewedAt; reviewDue = '2099-12-31'
             scope = 'Fixture assessment scope'; rationale = 'Explicit fixture acceptance decision.'
             residualRisk = 'Fixture risk'; reevaluationTrigger = 'Any fixture change.'
         })
@@ -544,7 +545,7 @@ function Test-SDAAcceptedRiskIds {
         })
         acceptedRisks = @([ordered]@{
             id = 'RISK-TAIL'; owner = 'Fixture owner'; reviewer = 'Fixture reviewer'
-            reviewedAt = '2099-01-01T00:00:00Z'; reviewDue = '2099-12-31'
+            reviewedAt = $validRiskReviewedAt; reviewDue = '2099-12-31'
             residualRisk = 'Fixture risk'; reevaluationTrigger = 'Any fixture change.'
         })
         externalComparisonBoundary = 'HOSK/GWDG: ExternalComparison only; never local evidence'
@@ -584,6 +585,14 @@ function Test-SDAAcceptedRiskBinding {
     $pair = Invoke-SDATestPair
     Assert-SDATest ($pair.Bash.ExitCode -eq 0 -and $pair.PowerShell.ExitCode -eq 0) 'Bound accepted risk was rejected.'
 
+    $delta.acceptedRisks[0].reviewedAt = [DateTimeOffset]::UtcNow.ToString('yyyy-MM-ddT00:00:00Z')
+    Write-SDATestJson $deltaPath $delta
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 0 -and $pair.PowerShell.ExitCode -eq 0) `
+        'Past risk review from the current UTC day was rejected.'
+    $delta.acceptedRisks[0].reviewedAt = $validRiskReviewedAt
+
     $delta.acceptedRisks[0].assessmentIds = @('UNRELATED-001')
     Write-SDATestJson $deltaPath $delta
     Update-SDATestBindings
@@ -591,12 +600,16 @@ function Test-SDAAcceptedRiskBinding {
     Assert-SDATest ($pair.Bash.ExitCode -eq 2 -and $pair.PowerShell.ExitCode -eq 2) 'Unrelated risk covered an unresolved assessment.'
 
     $delta.acceptedRisks[0].assessmentIds = @('TEST-001')
+    $futureUtc = [DateTimeOffset]::UtcNow.AddDays(1)
     foreach ($mutation in @(
         @{ Field = 'scope'; Value = '' },
         @{ Field = 'rationale'; Value = '' },
         @{ Field = 'reviewDue'; Value = '2020-01-01' },
         @{ Field = 'reviewedAt'; Value = 'not-a-date' },
-        @{ Field = 'reviewedAt'; Value = '2026-11-01T00:00:00+14:01' }
+        @{ Field = 'reviewedAt'; Value = '2026-11-01T00:00:00+14:01' },
+        @{ Field = 'reviewedAt'; Value = $futureUtc.ToString('yyyy-MM-ddTHH:mm:ssZ') },
+        @{ Field = 'reviewedAt'; Value = $futureUtc.ToOffset([TimeSpan]::FromHours(14)).ToString('yyyy-MM-ddTHH:mm:sszzz') },
+        @{ Field = 'reviewedAt'; Value = $futureUtc.ToOffset([TimeSpan]::FromHours(-12)).ToString('yyyy-MM-ddTHH:mm:sszzz') }
     )) {
         $original = $delta.acceptedRisks[0].($mutation.Field)
         $delta.acceptedRisks[0].($mutation.Field) = $mutation.Value
@@ -607,6 +620,13 @@ function Test-SDAAcceptedRiskBinding {
             "Invalid accepted risk $($mutation.Field) was accepted."
         $delta.acceptedRisks[0].($mutation.Field) = $original
     }
+    $delta.acceptedRisks[0].reviewedAt = [DateTimeOffset]::UtcNow.AddDays(-1).ToOffset(
+        [TimeSpan]::FromHours(14)).ToString('yyyy-MM-ddTHH:mm:sszzz')
+    Write-SDATestJson $deltaPath $delta
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 0 -and $pair.PowerShell.ExitCode -eq 0) `
+        'Past accepted risk with a positive UTC offset was rejected.'
 }
 
 function Test-SDAContextAndRiskTypes {

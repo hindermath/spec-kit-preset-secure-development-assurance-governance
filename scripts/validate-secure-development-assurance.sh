@@ -212,6 +212,38 @@ validate_accepted_risks() {
         (10#${zone:1:2} < 14 || 10#${zone:4:2} == 0) )) ||
         die "acceptedRisks.reviewedAt hat einen ungueltigen UTC-Offset: $file"
     fi
+    if [[ "$(uname -s)" == Darwin ]]; then
+      review_day_epoch="$(date -u -j -f '%Y-%m-%dT%H:%M:%S' "${parsed_review_date}T00:00:00" '+%s')" ||
+        die "acceptedRisks.reviewedAt ist kein gueltiger Zeitpunkt: $file"
+    else
+      review_day_epoch="$(date -u -d "$parsed_review_date" '+%s')" ||
+        die "acceptedRisks.reviewedAt ist kein gueltiger Zeitpunkt: $file"
+    fi
+    review_offset=0
+    if [[ "$reviewed_at" != *Z ]]; then
+      review_offset=$((10#${zone:1:2} * 3600 + 10#${zone:4:2} * 60))
+      if [[ "${zone:0:1}" == - ]]; then
+        review_offset=$((-review_offset))
+      fi
+    fi
+    review_epoch=$((review_day_epoch + 10#${reviewed_at:11:2} * 3600 +
+      10#${reviewed_at:14:2} * 60 + 10#${reviewed_at:17:2} - review_offset))
+    now_stamp="$(date -u '+%s %N')"
+    now_epoch="${now_stamp%% *}"
+    (( review_epoch <= now_epoch )) ||
+      die "acceptedRisks.reviewedAt liegt in der Zukunft: $file"
+    if (( review_epoch == now_epoch )) &&
+      [[ "$reviewed_at" =~ \.([0-9]+)(Z|[+-][0-9]{2}:[0-9]{2})$ ]]; then
+      review_fraction="${BASH_REMATCH[1]}"
+      now_fraction="${now_stamp#* }"
+      [[ "$now_fraction" =~ ^[0-9]{9}$ ]] ||
+        die "acceptedRisks.reviewedAt kann nicht sub-sekundengenau geprueft werden: $file"
+      while (( ${#review_fraction} < ${#now_fraction} )); do review_fraction="${review_fraction}0"; done
+      while (( ${#now_fraction} < ${#review_fraction} )); do now_fraction="${now_fraction}0"; done
+      if [[ "$review_fraction" > "$now_fraction" ]]; then
+        die "acceptedRisks.reviewedAt liegt in der Zukunft: $file"
+      fi
+    fi
     [[ "$review_due" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || die "acceptedRisks.reviewDue ist kein ISO-Datum: $file"
     if [[ "$(uname -s)" == Darwin ]]; then
       parsed_due="$(date -u -j -f '%Y-%m-%d' "$review_due" '+%Y-%m-%d' 2>/dev/null)" ||
