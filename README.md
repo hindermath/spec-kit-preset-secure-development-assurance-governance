@@ -669,14 +669,16 @@ project results.*
 
 ## 14. CI-Integration / CI Integration
 
-Ein Statuslauf eignet sich als fail-closed CI-Gate:
+Ein Bereitschaftslauf eignet sich als fail-closed CI-Gate. `Blocked` und
+`NeedsRemediation` liefern einen Fehlercode; der lesende Statusbefehl bleibt
+zur Diagnose verfügbar.
 
 ~~~yaml
 - name: Validate secure-development assurance
   shell: bash
   run: |
     bash .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.sh \
-      status docs/security/secure-development/2026-09-03-example
+      ready docs/security/secure-development/2026-09-03-example
 ~~~
 
 Windows:
@@ -685,15 +687,15 @@ Windows:
 - name: Validate secure-development assurance
   shell: pwsh
   run: |
-    pwsh -NoProfile -File .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.ps1 -Action Status -EvidenceDirectory docs/security/secure-development/2026-09-03-example
+    pwsh -NoProfile -File .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.ps1 -Action Status -RequireReady -EvidenceDirectory docs/security/secure-development/2026-09-03-example
 ~~~
 
 Ein grüner CI-Job bedeutet nur, dass der technische Evidence-Vertrag erfüllt
 ist. Er darf nicht automatisch `pilotAuthorization`,
 `projectAcceptance` oder `generalRelease` auf `Fulfilled` setzen.
 
-*CI may enforce the technical evidence contract. A green job never grants a
-human authorization.*
+*CI can require a Ready or ReadyWithAcceptedRisks technical outcome. A green
+job never grants a human authorization.*
 
 <a id="assurance-section-15"></a>
 

@@ -810,6 +810,33 @@ try {
     Test-SDAJqOutputMode -ExpectedStatus $positive.Bash.StdOut
     Test-SDAGateReviews
 
+    New-SDATestFixture
+    $readyClosurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+    $readyClosure = Read-SDATestJson $readyClosurePath
+    $readyClosure.outcome = 'Ready'
+    $readyClosure.assessments[0].applicability = 'Applicable'
+    $readyClosure.assessments[0].implementation = 'Fulfilled'
+    Write-SDATestJson $readyClosurePath $readyClosure
+    $readyBash = Invoke-SDATestProcess bash @($bashValidator, 'ready', $contextRelative)
+    $readyPowerShell = Invoke-SDATestProcess pwsh @(
+        '-NoProfile', '-File', $powerShellValidator, '-Action', 'Status',
+        '-RequireReady', '-EvidenceDirectory', $contextRelative
+    )
+    Assert-SDATest ($readyBash.ExitCode -eq 0 -and $readyPowerShell.ExitCode -eq 0) 'Ready CI gates rejected valid evidence.'
+    New-SDATestFixture
+    $blockedPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+    $blockedDelta = Read-SDATestJson $blockedPath
+    $blockedDelta.outcome = 'Blocked'
+    Write-SDATestJson $blockedPath $blockedDelta
+    $statusPair = Invoke-SDATestPair
+    Assert-SDATest ($statusPair.Bash.ExitCode -eq 0 -and $statusPair.PowerShell.ExitCode -eq 0) 'Diagnostic Status rejected valid Blocked evidence.'
+    $blockedBash = Invoke-SDATestProcess bash @($bashValidator, 'ready', $contextRelative)
+    $blockedPowerShell = Invoke-SDATestProcess pwsh @(
+        '-NoProfile', '-File', $powerShellValidator, '-Action', 'Status',
+        '-RequireReady', '-EvidenceDirectory', $contextRelative
+    )
+    Assert-SDATest ($blockedBash.ExitCode -ne 0 -and $blockedPowerShell.ExitCode -ne 0) 'Blocked evidence passed a CI readiness gate.'
+
     Invoke-SDANegativeCase {
         Add-Content -LiteralPath (Join-Path $temporaryRoot 'docs/secure-development/baseline-manifest.json') -Value ' '
     } 'Manifest-Hashdrift'
@@ -869,6 +896,27 @@ try {
         $delta.review.reviewDue = '2000-01-01'
         Write-SDATestJson $deltaPath $delta
     } 'Review ist abgelaufen'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
+        $delta.review.reviewDue = '2099-02-30'
+        Write-SDATestJson $deltaPath $delta
+    } 'review.reviewDue ist kein ISO-Datum'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
+        $delta.contextId = 'other-context'
+        Write-SDATestJson $deltaPath $delta
+    } 'Kontext-ID-Drift'
+
+    Invoke-SDANegativeCase {
+        $imagePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'image-impact.json')
+        $image = Read-SDATestJson $imagePath
+        $image.mode = 'training'
+        Write-SDATestJson $imagePath $image
+    } 'Betriebsart-Drift'
 
     Invoke-SDANegativeCase {
         $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')

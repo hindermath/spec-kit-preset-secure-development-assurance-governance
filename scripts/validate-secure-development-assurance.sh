@@ -114,7 +114,7 @@ validate_security_dependency() {
 
 validate_review_metadata() {
   local file="$1"
-  local owner reviewer reviewed_at review_due residual_risk trigger today
+  local owner reviewer reviewed_at review_due residual_risk trigger today parsed_due
   owner="$(require_json_text "$file" '.review.owner' 'review.owner')"
   reviewer="$(require_json_text "$file" '.review.reviewer' 'review.reviewer')"
   reviewed_at="$(require_json_text "$file" '.review.reviewedAt' 'review.reviewedAt')"
@@ -125,6 +125,14 @@ validate_review_metadata() {
   [[ "$reviewed_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$ ]] ||
     die "review.reviewedAt ist kein ISO-8601-Zeitpunkt: $file"
   [[ "$review_due" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || die "review.reviewDue ist kein ISO-Datum: $file"
+  if [[ "$(uname -s)" == Darwin ]]; then
+    parsed_due="$(date -u -j -f '%Y-%m-%d' "$review_due" '+%Y-%m-%d' 2>/dev/null)" ||
+      die "review.reviewDue ist kein ISO-Datum: $file"
+  else
+    parsed_due="$(date -u -d "$review_due" '+%Y-%m-%d' 2>/dev/null)" ||
+      die "review.reviewDue ist kein ISO-Datum: $file"
+  fi
+  [[ "$parsed_due" == "$review_due" ]] || die "review.reviewDue ist kein ISO-Datum: $file"
   today="$(date -u +%Y-%m-%d)"
   [[ "$review_due" > "$today" || "$review_due" == "$today" ]] || die "Review ist abgelaufen ($review_due): $file"
 }
@@ -385,15 +393,24 @@ validate_context() {
   [[ -f "$context_dir/evidence-matrix.md" ]] || die 'evidence-matrix.md fehlt.'
   validate_gate_file "$context_dir/baseline.json" baseline
   validate_baseline_contract "$context_dir/baseline.json"
+  local expected_id expected_mode
+  expected_id="$(require_json_text "$context_dir/baseline.json" '.contextId' 'contextId')"
+  expected_mode="$(require_json_text "$context_dir/baseline.json" '.mode' 'mode')"
   local delta_count=0 delta_file
   while IFS= read -r delta_file; do
     validate_gate_file "$delta_file" delta
+    [[ "$(require_json_text "$delta_file" '.contextId' 'contextId')" == "$expected_id" ]] || die "Kontext-ID-Drift: $delta_file"
+    [[ "$(require_json_text "$delta_file" '.mode' 'mode')" == "$expected_mode" ]] || die "Betriebsart-Drift: $delta_file"
     delta_count=$((delta_count + 1))
   done < <(find "$context_dir/deltas" -maxdepth 1 -type f -name '*.json' 2>/dev/null | LC_ALL=C sort)
   (( delta_count > 0 )) || die 'Mindestens eine Delta-Evidence fehlt.'
   validate_gate_file "$context_dir/closure.json" closure
+  [[ "$(require_json_text "$context_dir/closure.json" '.contextId' 'contextId')" == "$expected_id" ]] || die 'Kontext-ID-Drift: closure.json'
+  [[ "$(require_json_text "$context_dir/closure.json" '.mode' 'mode')" == "$expected_mode" ]] || die 'Betriebsart-Drift: closure.json'
   validate_closure "$context_dir/closure.json"
   validate_gate_file "$context_dir/image-impact.json" image-impact
+  [[ "$(require_json_text "$context_dir/image-impact.json" '.contextId' 'contextId')" == "$expected_id" ]] || die 'Kontext-ID-Drift: image-impact.json'
+  [[ "$(require_json_text "$context_dir/image-impact.json" '.mode' 'mode')" == "$expected_mode" ]] || die 'Betriebsart-Drift: image-impact.json'
   validate_image_impact "$context_dir/image-impact.json"
 }
 
@@ -417,6 +434,7 @@ print_status() {
     $0=="ReadyWithAcceptedRisks" && result=="Ready" {result="ReadyWithAcceptedRisks"}
     END {print result}
   ')"
+  STATUS_OVERALL="$overall"
   next_action="$("${SDA_JQ[@]}" -r '.nextAction // empty' "$context_dir/closure.json")"
   [[ -n "$next_action" ]] || next_action='No further technical action recorded.'
   printf 'Context: %s\n' "$context_dir"
@@ -447,10 +465,13 @@ readonly -a SDA_JQ
 
 action="${1:-status}"
 case "$action" in
-  status)
+  status|ready)
     context_dir="$(resolve_context "${2:-}")"
     validate_context "$context_dir"
     print_status "$context_dir"
+    if [[ "$action" == ready && "$STATUS_OVERALL" != Ready && "$STATUS_OVERALL" != ReadyWithAcceptedRisks ]]; then
+      die "Assurance-Evidence ist nicht bereit: $STATUS_OVERALL"
+    fi
     ;;
   review)
     [[ $# -eq 4 ]] || die 'Syntax: review <baseline|delta|closure|image-impact> <context-id> <training|mixed|development>'

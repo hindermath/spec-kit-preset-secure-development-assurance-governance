@@ -27,6 +27,9 @@ Training, Mixed oder Development.
 .EXAMPLE
 pwsh -NoProfile -File validate-secure-development-assurance.ps1 -Action Status -EvidenceDirectory docs/security/secure-development/2026-08-29-example
 
+.PARAMETER RequireReady
+Status beendet den CI-Gate-Lauf mit Fehler, wenn das Gesamtergebnis Blocked oder NeedsRemediation ist.
+
 .EXAMPLE
 pwsh -NoProfile -File validate-secure-development-assurance.ps1 -Action Review -Gate baseline -ContextId example -Mode training
 #>
@@ -39,7 +42,8 @@ param(
     [string]$Gate,
     [string]$ContextId,
     [ValidateSet('training', 'mixed', 'development')]
-    [string]$Mode
+    [string]$Mode,
+    [switch]$RequireReady
 )
 
 Set-StrictMode -Version Latest
@@ -572,6 +576,8 @@ function Test-SDAContext {
     $baselinePath = Join-Path $Path 'baseline.json'
     $baseline = Test-SDAGateFile $baselinePath baseline
     Test-SDABaselineContract $baseline $baselinePath
+    $expectedId = Get-SDAText $baseline 'contextId' 'contextId'
+    $expectedMode = Get-SDAText $baseline 'mode' 'mode'
     $deltaDirectory = Join-Path $Path 'deltas'
     $deltaFiles = @(if (Test-Path -LiteralPath $deltaDirectory -PathType Container) {
         Get-ChildItem -LiteralPath $deltaDirectory -Filter '*.json' -File | Sort-Object Name
@@ -580,11 +586,23 @@ function Test-SDAContext {
         Stop-SDAValidation 'Mindestens eine Delta-Evidence fehlt.'
     }
     foreach ($deltaFile in $deltaFiles) {
-        $null = Test-SDAGateFile $deltaFile.FullName delta
+        $delta = Test-SDAGateFile $deltaFile.FullName delta
+        if ((Get-SDAText $delta 'contextId' 'contextId') -cne $expectedId -or
+            (Get-SDAText $delta 'mode' 'mode') -cne $expectedMode) {
+            Stop-SDAValidation "Kontext- oder Betriebsart-Drift: $($deltaFile.FullName)"
+        }
     }
     $closure = Test-SDAGateFile (Join-Path $Path 'closure.json') closure
+    if ((Get-SDAText $closure 'contextId' 'contextId') -cne $expectedId -or
+        (Get-SDAText $closure 'mode' 'mode') -cne $expectedMode) {
+        Stop-SDAValidation 'Kontext- oder Betriebsart-Drift: closure.json'
+    }
     Test-SDAClosure $closure
     $image = Test-SDAGateFile (Join-Path $Path 'image-impact.json') image-impact
+    if ((Get-SDAText $image 'contextId' 'contextId') -cne $expectedId -or
+        (Get-SDAText $image 'mode' 'mode') -cne $expectedMode) {
+        Stop-SDAValidation 'Kontext- oder Betriebsart-Drift: image-impact.json'
+    }
     Test-SDAImageImpact $image
 }
 
@@ -605,6 +623,7 @@ function Write-SDAStatus {
     $image = Read-SDAJson (Join-Path $Path 'image-impact.json')
     $deltaOutcome = Get-SDAWorstOutcome @($deltaDocuments.outcome)
     $overall = Get-SDAWorstOutcome @($baseline.outcome, $deltaOutcome, $closure.outcome, $image.outcome)
+    $script:OverallOutcome = $overall
     $nextActionProperty = $closure.PSObject.Properties['nextAction']
     $nextAction = if ($nextActionProperty -and -not [string]::IsNullOrWhiteSpace([string]$nextActionProperty.Value)) {
         [string]$nextActionProperty.Value
@@ -638,6 +657,9 @@ try {
         }
         Test-SDAContext $EvidenceDirectory
         Write-SDAStatus $EvidenceDirectory
+        if ($RequireReady -and $script:OverallOutcome -notin @('Ready', 'ReadyWithAcceptedRisks')) {
+            Stop-SDAValidation "Assurance-Evidence ist nicht bereit: $script:OverallOutcome"
+        }
         exit 0
     }
 
