@@ -103,6 +103,9 @@ Ein einzelnes Risiko steht in `[{...}]`, nicht in `{...}`.
 Ein leeres Array ist zulässig, jedoch nicht bei `ReadyWithAcceptedRisks`.
 Fehlende optionale `acceptedRisks` bleiben bei anderen Ergebnissen zulässig.
 Die vorhandenen Pflichtfelder jedes Risikos gelten unverändert.
+`acceptedRisks.reviewedAt` muss einen bereits erreichten Zeitpunkt bezeichnen;
+UTC-Offsets werden als absoluter Zeitpunkt verglichen. Ein zukünftiges
+Reviewdatum blockiert `ReadyWithAcceptedRisks`.
 
 *From v0.1.3, review requires exactly one dated directory with the full,
 case-sensitive context ID. Suffix matches and duplicate dated contexts are
@@ -114,3 +117,7 @@ array; one risk uses [{...}], not {...}. Null, booleans, numbers and strings
 are invalid. Empty arrays are allowed except for ReadyWithAcceptedRisks.
 Other outcomes may omit the optional field. Risk metadata requirements and
 all human decision boundaries remain unchanged.*
+
+*`acceptedRisks.reviewedAt` must be an instant that has already occurred. UTC
+offsets are compared as absolute time; a future review instant blocks
+`ReadyWithAcceptedRisks`.*

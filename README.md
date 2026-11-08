@@ -1,10 +1,10 @@
 # Secure Development Assurance Governance
 
-<!-- current-package: 0.1.8 -->
+<!-- current-package: 0.1.9 -->
 
-Paketkennung: **v0.1.8**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.1.8-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
+Paketkennung: **v0.1.9**. [Vorbereitung und Veröffentlichungsgrenze](docs/release-0.1.9-validation.md). Die Release-Seite und der externe Archivnachweis belegen die Veröffentlichung, nicht dieser Vorbereitungsstand. Frühere Versionsnachweise unten bleiben historisch.
 
-<span lang="en">Package identity: v0.1.8. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
+<span lang="en">Package identity: v0.1.9. The release page and external archive evidence prove publication, not this preparation snapshot. Earlier version records below remain historical.</span>
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](docs/release-0.1.7-validation.md).
 
@@ -270,7 +270,7 @@ preset between them without granting execution or approval authority.*
 ### Veröffentlichtes Tag-ZIP
 
 ~~~bash
-specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.8.zip --priority 15
+specify preset add --from https://github.com/hindermath/spec-kit-preset-secure-development-assurance-governance/archive/refs/tags/v0.1.9.zip --priority 15
 
 specify preset info secure-development-assurance-governance
 specify preset resolve secure-development-evidence-contract
@@ -669,14 +669,16 @@ project results.*
 
 ## 14. CI-Integration / CI Integration
 
-Ein Statuslauf eignet sich als fail-closed CI-Gate:
+Ein Bereitschaftslauf eignet sich als fail-closed CI-Gate. `Blocked` und
+`NeedsRemediation` liefern einen Fehlercode; der lesende Statusbefehl bleibt
+zur Diagnose verfügbar.
 
 ~~~yaml
 - name: Validate secure-development assurance
   shell: bash
   run: |
     bash .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.sh \
-      status docs/security/secure-development/2026-09-03-example
+      ready docs/security/secure-development/2026-09-03-example
 ~~~
 
 Windows:
@@ -685,15 +687,15 @@ Windows:
 - name: Validate secure-development assurance
   shell: pwsh
   run: |
-    pwsh -NoProfile -File .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.ps1 -Action Status -EvidenceDirectory docs/security/secure-development/2026-09-03-example
+    pwsh -NoProfile -File .specify/presets/secure-development-assurance-governance/scripts/validate-secure-development-assurance.ps1 -Action Status -RequireReady -EvidenceDirectory docs/security/secure-development/2026-09-03-example
 ~~~
 
 Ein grüner CI-Job bedeutet nur, dass der technische Evidence-Vertrag erfüllt
 ist. Er darf nicht automatisch `pilotAuthorization`,
 `projectAcceptance` oder `generalRelease` auf `Fulfilled` setzen.
 
-*CI may enforce the technical evidence contract. A green job never grants a
-human authorization.*
+*CI can require a Ready or ReadyWithAcceptedRisks technical outcome. A green
+job never grants a human authorization.*
 
 <a id="assurance-section-15"></a>
 
@@ -932,7 +934,10 @@ Ein einzelnes Risiko steht in `[{...}]`, nicht in `{...}`.
 `null`, boolesche Werte, Zahlen und Zeichenketten sind unzulässig.
 Ein leeres Array ist zulässig, jedoch nicht bei `ReadyWithAcceptedRisks`.
 Fehlende optionale `acceptedRisks` bleiben bei anderen Ergebnissen zulässig.
-Die vorhandenen Pflichtfelder jedes Risikos gelten unverändert.
+Die bisherigen Pflichtfelder jedes Risikos bleiben gültig.
+Jedes Risiko benötigt `scope`, `rationale` und ein gültiges, noch nicht
+abgelaufenes `reviewDue`. Bei `ReadyWithAcceptedRisks` muss `assessmentIds`
+jeden offenen oder nicht erfüllten Pflichtpunkt einem Risiko zuordnen.
 
 *From v0.1.3, review requires exactly one dated directory with the full,
 case-sensitive context ID. Suffix matches and duplicate dated contexts are
@@ -942,8 +947,11 @@ Clarify the intended context before retrying; never rename or approve evidence
 merely to satisfy validation. When present, acceptedRisks must be a JSON
 array; one risk uses [{...}], not {...}. Null, booleans, numbers and strings
 are invalid. Empty arrays are allowed except for ReadyWithAcceptedRisks.
-Other outcomes may omit the optional field. Risk metadata requirements and
-all human decision boundaries remain unchanged.*
+Other outcomes may omit the optional field. Existing risk metadata and
+human decision boundaries remain valid.*
+Each risk requires `scope`, `rationale`, and a valid, unexpired `reviewDue`.
+For `ReadyWithAcceptedRisks`, `assessmentIds` must bind every open or
+unfulfilled required assessment to an accepted risk.
 
 
 `v0.1.2` korrigiert SDA-FT-003 an der gemeinsamen Risiko-Pruefgrenze fuer

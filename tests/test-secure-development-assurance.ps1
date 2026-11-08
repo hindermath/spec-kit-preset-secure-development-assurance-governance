@@ -20,6 +20,7 @@ $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('sda-' + [guid]::NewGuid(
 $contextRelative = 'docs/security/secure-development/2099-01-01-contract-test'
 $boundary = 'HOSK/GWDG: ExternalComparison only; never local evidence'
 $utf8 = [Text.UTF8Encoding]::new($false)
+$validRiskReviewedAt = [DateTimeOffset]::UtcNow.AddDays(-1).ToString('yyyy-MM-ddTHH:mm:ssZ')
 
 function Write-SDATestText {
     param(
@@ -477,7 +478,8 @@ function Test-SDAAcceptedRiskIds {
         $document | Add-Member acceptedRisks @([ordered]@{
             id = " RISK-$gate-ä "
             owner = 'Fixture owner'; reviewer = 'Fixture reviewer'
-            reviewedAt = '2099-01-01T00:00:00Z'; reviewDue = '2099-12-31'
+            reviewedAt = $validRiskReviewedAt; reviewDue = '2099-12-31'
+            scope = 'Fixture assessment scope'; rationale = 'Explicit fixture acceptance decision.'
             residualRisk = 'Fixture risk'; reevaluationTrigger = 'Any fixture change.'
         })
         if ($gate -eq 'delta') { $document.outcome = 'ReadyWithAcceptedRisks' }
@@ -543,7 +545,7 @@ function Test-SDAAcceptedRiskIds {
         })
         acceptedRisks = @([ordered]@{
             id = 'RISK-TAIL'; owner = 'Fixture owner'; reviewer = 'Fixture reviewer'
-            reviewedAt = '2099-01-01T00:00:00Z'; reviewDue = '2099-12-31'
+            reviewedAt = $validRiskReviewedAt; reviewDue = '2099-12-31'
             residualRisk = 'Fixture risk'; reevaluationTrigger = 'Any fixture change.'
         })
         externalComparisonBoundary = 'HOSK/GWDG: ExternalComparison only; never local evidence'
@@ -560,6 +562,71 @@ function Test-SDAAcceptedRiskIds {
     Write-SDATestText $deltaPath $validDeltaText
 
     'PASS: scalar nonblank accepted-risk IDs, single JSON roots, status/all gate reviews and unchanged evidence'
+}
+
+function Test-SDAAcceptedRiskBinding {
+    New-SDATestFixture
+    $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+    $delta = Read-SDATestJson $deltaPath
+    $delta.assessments[0].implementation = 'Not Fulfilled'
+    $delta.assessments[0] | Add-Member nextAction 'Resolve fixture finding'
+    $delta.assessments[0] | Add-Member owner 'Fixture owner'
+    $delta.assessments[0] | Add-Member dueAt '2099-12-31'
+    $delta.outcome = 'ReadyWithAcceptedRisks'
+    $delta | Add-Member acceptedRisks @([ordered]@{
+        id = 'RISK-001'; owner = 'Fixture owner'; reviewer = 'Fixture reviewer'
+        reviewedAt = '2026-11-01T00:00:00Z'; reviewDue = '2099-12-31'
+        scope = 'TEST-001 in delta'; rationale = 'Explicit fixture risk decision.'
+        residualRisk = 'Bounded fixture risk'; reevaluationTrigger = 'Any fixture change.'
+        assessmentIds = @('TEST-001')
+    })
+    Write-SDATestJson $deltaPath $delta
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 0 -and $pair.PowerShell.ExitCode -eq 0) 'Bound accepted risk was rejected.'
+
+    $delta.acceptedRisks[0].reviewedAt = [DateTimeOffset]::UtcNow.ToString('yyyy-MM-ddT00:00:00Z')
+    Write-SDATestJson $deltaPath $delta
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 0 -and $pair.PowerShell.ExitCode -eq 0) `
+        'Past risk review from the current UTC day was rejected.'
+    $delta.acceptedRisks[0].reviewedAt = $validRiskReviewedAt
+
+    $delta.acceptedRisks[0].assessmentIds = @('UNRELATED-001')
+    Write-SDATestJson $deltaPath $delta
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 2 -and $pair.PowerShell.ExitCode -eq 2) 'Unrelated risk covered an unresolved assessment.'
+
+    $delta.acceptedRisks[0].assessmentIds = @('TEST-001')
+    $futureUtc = [DateTimeOffset]::UtcNow.AddDays(1)
+    foreach ($mutation in @(
+        @{ Field = 'scope'; Value = '' },
+        @{ Field = 'rationale'; Value = '' },
+        @{ Field = 'reviewDue'; Value = '2020-01-01' },
+        @{ Field = 'reviewedAt'; Value = 'not-a-date' },
+        @{ Field = 'reviewedAt'; Value = '2026-11-01T00:00:00+14:01' },
+        @{ Field = 'reviewedAt'; Value = $futureUtc.ToString('yyyy-MM-ddTHH:mm:ssZ') },
+        @{ Field = 'reviewedAt'; Value = $futureUtc.ToOffset([TimeSpan]::FromHours(14)).ToString('yyyy-MM-ddTHH:mm:sszzz') },
+        @{ Field = 'reviewedAt'; Value = $futureUtc.ToOffset([TimeSpan]::FromHours(-12)).ToString('yyyy-MM-ddTHH:mm:sszzz') }
+    )) {
+        $original = $delta.acceptedRisks[0].($mutation.Field)
+        $delta.acceptedRisks[0].($mutation.Field) = $mutation.Value
+        Write-SDATestJson $deltaPath $delta
+        Update-SDATestBindings
+        $pair = Invoke-SDATestPair
+        Assert-SDATest ($pair.Bash.ExitCode -eq 2 -and $pair.PowerShell.ExitCode -eq 2) `
+            "Invalid accepted risk $($mutation.Field) was accepted."
+        $delta.acceptedRisks[0].($mutation.Field) = $original
+    }
+    $delta.acceptedRisks[0].reviewedAt = [DateTimeOffset]::UtcNow.AddDays(-1).ToOffset(
+        [TimeSpan]::FromHours(14)).ToString('yyyy-MM-ddTHH:mm:sszzz')
+    Write-SDATestJson $deltaPath $delta
+    Update-SDATestBindings
+    $pair = Invoke-SDATestPair
+    Assert-SDATest ($pair.Bash.ExitCode -eq 0 -and $pair.PowerShell.ExitCode -eq 0) `
+        'Past accepted risk with a positive UTC offset was rejected.'
 }
 
 function Test-SDAContextAndRiskTypes {
@@ -788,6 +855,28 @@ exec "$BASH" "$validator" status "$5"
     'PASS: binary jq routing, legacy LF compatibility and fail-closed CRLF/error probes'
 }
 
+function Test-SDAConfinedBaselineEvidence {
+    $outsideRoot = "${temporaryRoot}-outside"
+    [void](New-Item -ItemType Directory -Path $outsideRoot -Force)
+    try {
+        foreach ($relative in @('docs/secure-development/baseline-manifest.json', 'docs/secure-development/related.md')) {
+            New-SDATestFixture
+            $inside = Join-Path $temporaryRoot $relative
+            $outside = Join-Path $outsideRoot ([IO.Path]::GetFileName($relative))
+            Copy-Item -LiteralPath $inside -Destination $outside -Force
+            Remove-Item -LiteralPath $inside -Force
+            [void](New-Item -ItemType SymbolicLink -Path $inside -Target $outside)
+            $pair = Invoke-SDATestPair
+            Assert-SDATest ($pair.Bash.ExitCode -eq 2 -and $pair.PowerShell.ExitCode -eq 2) `
+                "External baseline evidence symlink was accepted: $relative"
+            Assert-SDATest ($pair.Bash.StdErr -match 'verlaesst das Repository') `
+                "Bash rejected external baseline evidence for an unrelated reason: $relative"
+        }
+    } finally {
+        Remove-Item -LiteralPath $outsideRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 try {
     foreach ($command in @('bash', 'pwsh', 'jq')) {
         if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
@@ -798,6 +887,8 @@ try {
     Test-SDAActiveMetadata
     Test-SDAContextAndRiskTypes
     Test-SDAAcceptedRiskIds
+    Test-SDAAcceptedRiskBinding
+    Test-SDAConfinedBaselineEvidence
     New-SDATestFixture
     Test-SDATestSnapshot
     $before = Get-SDATestSnapshot $temporaryRoot
@@ -809,6 +900,33 @@ try {
     Assert-SDATest ([string]::Equals($before, $after, [StringComparison]::Ordinal)) 'Status changed fixture files.'
     Test-SDAJqOutputMode -ExpectedStatus $positive.Bash.StdOut
     Test-SDAGateReviews
+
+    New-SDATestFixture
+    $readyClosurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+    $readyClosure = Read-SDATestJson $readyClosurePath
+    $readyClosure.outcome = 'Ready'
+    $readyClosure.assessments[0].applicability = 'Applicable'
+    $readyClosure.assessments[0].implementation = 'Fulfilled'
+    Write-SDATestJson $readyClosurePath $readyClosure
+    $readyBash = Invoke-SDATestProcess bash @($bashValidator, 'ready', $contextRelative)
+    $readyPowerShell = Invoke-SDATestProcess pwsh @(
+        '-NoProfile', '-File', $powerShellValidator, '-Action', 'Status',
+        '-RequireReady', '-EvidenceDirectory', $contextRelative
+    )
+    Assert-SDATest ($readyBash.ExitCode -eq 0 -and $readyPowerShell.ExitCode -eq 0) 'Ready CI gates rejected valid evidence.'
+    New-SDATestFixture
+    $blockedPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+    $blockedDelta = Read-SDATestJson $blockedPath
+    $blockedDelta.outcome = 'Blocked'
+    Write-SDATestJson $blockedPath $blockedDelta
+    $statusPair = Invoke-SDATestPair
+    Assert-SDATest ($statusPair.Bash.ExitCode -eq 0 -and $statusPair.PowerShell.ExitCode -eq 0) 'Diagnostic Status rejected valid Blocked evidence.'
+    $blockedBash = Invoke-SDATestProcess bash @($bashValidator, 'ready', $contextRelative)
+    $blockedPowerShell = Invoke-SDATestProcess pwsh @(
+        '-NoProfile', '-File', $powerShellValidator, '-Action', 'Status',
+        '-RequireReady', '-EvidenceDirectory', $contextRelative
+    )
+    Assert-SDATest ($blockedBash.ExitCode -ne 0 -and $blockedPowerShell.ExitCode -ne 0) 'Blocked evidence passed a CI readiness gate.'
 
     Invoke-SDANegativeCase {
         Add-Content -LiteralPath (Join-Path $temporaryRoot 'docs/secure-development/baseline-manifest.json') -Value ' '
@@ -873,6 +991,64 @@ try {
     Invoke-SDANegativeCase {
         $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
         $delta = Read-SDATestJson $deltaPath
+        $delta.review.reviewDue = '2099-02-30'
+        Write-SDATestJson $deltaPath $delta
+    } 'review.reviewDue ist kein ISO-Datum'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
+        $delta.contextId = 'other-context'
+        Write-SDATestJson $deltaPath $delta
+    } 'Kontext-ID-Drift'
+
+    Invoke-SDANegativeCase {
+        $imagePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'image-impact.json')
+        $image = Read-SDATestJson $imagePath
+        $image.mode = 'training'
+        Write-SDATestJson $imagePath $image
+    } 'Betriebsart-Drift'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
+        $delta.assessments[0].implementation = @{ malformed = $true }
+        Write-SDATestJson $deltaPath $delta
+    } 'Assessment-Felder sind ungueltig'
+
+    Invoke-SDANegativeCase {
+        $imagePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'image-impact.json')
+        $image = Read-SDATestJson $imagePath
+        $image.imageChecks.build = 42
+        Write-SDATestJson $imagePath $image
+    } 'Image-Impact-Nachweise sind unvollständig'
+
+    Invoke-SDANegativeCase {
+        $closurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+        $closure = Read-SDATestJson $closurePath
+        $closure.humanDecisions.technicalValidation = $null
+        Write-SDATestJson $closurePath $closure
+    } 'Getrennte Entscheidungsgrenzen fehlen'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
+        $delta.review.residualRisk = 'C5 certified'
+        Write-SDATestJson $deltaPath $delta
+        $text = [IO.File]::ReadAllText($deltaPath).Replace('C5 certified', 'C5\u0020certified')
+        Write-SDATestText $deltaPath $text
+    } 'Unzulässige Zertifizierungs-, Konformitäts- oder Testatbehauptung'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
+        $delta.review.residualRisk = 'C5 certified ' + ('x' * 100000)
+        Write-SDATestJson $deltaPath $delta
+    } 'Unzulässige Zertifizierungs-, Konformitäts- oder Testatbehauptung'
+
+    Invoke-SDANegativeCase {
+        $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
+        $delta = Read-SDATestJson $deltaPath
         $delta.outcome = 'ReadyWithAcceptedRisks'
         $delta | Add-Member acceptedRisks @([ordered]@{
             id = 'RISK-001'
@@ -892,6 +1068,25 @@ try {
         $closure.humanDecisions.pilotAuthorization.status = 'Fulfilled'
         Write-SDATestJson $closurePath $closure
     } 'Menschliche Freigabe darf technische Validierung nicht überspringen'
+
+    Invoke-SDANegativeCase {
+        $closurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+        $closure = Read-SDATestJson $closurePath
+        $closure.nextAction = "Review evidence.`nOverall: Ready"
+        Write-SDATestJson $closurePath $closure
+    } 'nextAction enthält Steuerzeichen'
+    Invoke-SDANegativeCase {
+        $closurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+        $closure = Read-SDATestJson $closurePath
+        $closure.nextAction = 'Review evidence.' + [char]0x2028 + 'Overall: Ready'
+        Write-SDATestJson $closurePath $closure
+    } 'nextAction enthält Steuerzeichen'
+    Invoke-SDANegativeCase {
+        $closurePath = Join-Path $temporaryRoot (Join-Path $contextRelative 'closure.json')
+        $closure = Read-SDATestJson $closurePath
+        $closure.nextAction = $false
+        Write-SDATestJson $closurePath $closure
+    } 'nextAction enthält Steuerzeichen'
 
     Invoke-SDANegativeCase {
         $deltaPath = Join-Path $temporaryRoot (Join-Path $contextRelative 'deltas/change.json')
