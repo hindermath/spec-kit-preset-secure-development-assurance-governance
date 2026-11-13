@@ -1,8 +1,8 @@
 # User guide: secure-development-assurance-governance
 
-<!-- current-package: 0.1.9 -->
+<!-- current-package: 0.1.10 -->
 
-Package identity: **v0.1.9**. [Preparation and publication boundary](release-0.1.9-validation.md). The release page, not this preparation snapshot, proves publication and the external archive hash. Earlier version records below remain historical.
+Package identity: **v0.1.10**. [Preparation and publication boundary](release-0.1.10-validation.md). The release page, not this preparation snapshot, proves publication and the external archive hash. Earlier version records below remain historical.
 
 [Release-Abschluss und Verbesserungsprofil / Publication closeout and improvement profile](release-0.1.7-validation.md).
 
