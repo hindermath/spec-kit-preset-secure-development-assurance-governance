@@ -1,6 +1,6 @@
 {
   "id": "secure-development-assurance-governance",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "priority": 15,
   "readers": [
     "docs/user-guide.md",
